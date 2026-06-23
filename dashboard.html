@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domus Global — Conciliación</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f5f5f7;
+      --surface:   #ffffff;
+      --surface-2: #f0f0f2;
+      --surface-3: #e8e8ea;
+
+      --ink-1: #1d1d1f;
+      --ink-2: #3d3d3f;
+      --ink-3: #6e6e73;
+      --ink-4: #aeaeb2;
+
+      --border-sub: rgba(0,0,0,0.06);
+      --border-def: rgba(0,0,0,0.10);
+
+      --accent:      #0071e3;
+      --accent-soft: rgba(0,113,227,0.10);
+      --accent-text: #004aad;
+
+      --success:      #30d158;
+      --success-soft: rgba(48,209,88,0.12);
+      --success-text: #1a7a33;
+
+      --warning:      #ff9f0a;
+      --warning-soft: rgba(255,159,10,0.12);
+      --warning-text: #7a4800;
+
+      --error:      #ff453a;
+      --error-soft: rgba(255,69,58,0.12);
+      --error-text: #8a1a14;
+
+      --r-sm: 8px;
+      --r-md: 14px;
+      --r-lg: 20px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--ink-1);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+    .header {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-sub);
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      height: 60px;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .logo-mark {
+      width: 28px;
+      height: 28px;
+      background: var(--ink-1);
+      border-radius: 7px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3.5px;
+      padding: 6px;
+    }
+
+    .logo-mark span { background: white; border-radius: 1.5px; }
+    .logo-mark span:last-child { opacity: 0.35; }
+
+    .logo-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink-1);
+      letter-spacing: -0.02em;
+    }
+
+    .hdiv { width: 1px; height: 20px; background: var(--border-def); flex-shrink: 0; }
+
+    .view-toggle {
+      display: flex;
+      background: var(--surface-2);
+      border-radius: var(--r-sm);
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .toggle-btn {
+      padding: 4px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--ink-3);
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+      font-family: inherit;
+    }
+
+    .toggle-btn.active {
+      background: var(--surface);
+      color: var(--ink-1);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+    }
+
+    .toggle-btn:active { transform: scale(0.97); }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .period-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 1px solid var(--border-def);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink-2);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      font-weight: 500;
+    }
+
+    .period-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .period-btn:active { transform: scale(0.98); }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      border: 1.5px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+
+    /* ── Views ───────────────────────────────────────────────────────── */
+    .view {
+      display: none;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 36px 32px;
+    }
+
+    .view.active {
+      display: block;
+      animation: viewIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes viewIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Page header ─────────────────────────────────────────────────── */
+    .page-hd {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .page-title {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: var(--ink-1);
+      line-height: 1.1;
+      text-wrap: balance;
+    }
+
+    .page-sub { font-size: 14px; color: var(--ink-3); margin-top: 5px; }
+
+    .page-meta { font-size: 12px; color: var(--ink-4); text-align: right; line-height: 1.6; }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border-def);
+      border-radius: var(--r-sm);
+      background: var(--surface);
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink-2);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      font-weight: 500;
+    }
+
+    .back-btn:hover { border-color: var(--ink-3); color: var(--ink-1); }
+    .back-btn:active { transform: scale(0.98); }
+
+    /* ── KPI Grid ────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-sub);
+      padding: 22px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.2s, transform 0.2s;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .kpi-card.in { animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .kpi-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); transform: translateY(-1px); }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-4);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+    }
+
+    .kpi-num {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: var(--ink-1);
+      line-height: 1;
+      margin-bottom: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .kpi-num .currency { font-size: 16px; font-weight: 600; color: var(--ink-3); margin-right: 1px; }
+
+    .kpi-detail { font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    .delta-up { color: var(--success-text); font-weight: 600; }
+    .delta-dn { color: var(--error-text); font-weight: 600; }
+
+    /* Ring progress */
+    .kpi-ring {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .ring-svg { transform: rotate(-90deg); display: block; }
+    .ring-bg  { fill: none; stroke: var(--surface-2); stroke-width: 4; }
+    .ring-fill {
+      fill: none;
+      stroke-width: 4;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .ring-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* Alert card */
+    .kpi-card-warn { border-color: rgba(255,159,10,0.22); }
+
+    .kpi-icon {
+      position: absolute;
+      right: 18px;
+      top: 18px;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Holding — company ranking ───────────────────────────────────── */
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink-1);
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .companies-panel {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-sub);
+      overflow: hidden;
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .companies-panel.in { animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    .co-th-row {
+      padding: 10px 24px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border-sub);
+      display: grid;
+      grid-template-columns: 1fr 200px 80px 110px 60px 36px;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .co-th {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-4);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .co-th.r { text-align: right; }
+    .co-th.c { text-align: center; }
+
+    .co-row {
+      display: grid;
+      grid-template-columns: 1fr 200px 80px 110px 60px 36px;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-sub);
+      cursor: pointer;
+      transition: background 0.12s;
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    .co-row.in { animation: rowIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .co-row:last-child { border-bottom: none; }
+    .co-row:hover { background: var(--bg); }
+    .co-row:active { background: var(--surface-2); }
+
+    @keyframes rowIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .co-name-cell { overflow: hidden; }
+
+    .co-name {
+      font-weight: 600;
+      color: var(--ink-1);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .co-rut { font-size: 11px; color: var(--ink-4); margin-top: 2px; }
+
+    .spend-col { display: flex; align-items: center; gap: 8px; }
+
+    .spend-track { flex: 1; height: 4px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+
+    .spend-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .spend-amt {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-1);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      min-width: 72px;
+      text-align: right;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: var(--r-lg);
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-conciliada { background: var(--success-soft); color: var(--success-text); }
+    .badge-pendiente  { background: var(--warning-soft); color: var(--warning-text); }
+    .badge-revision   { background: var(--error-soft);   color: var(--error-text); }
+    .badge-sinmatch   { background: rgba(110,110,115,0.12); color: var(--ink-2); }
+    .badge-cat        { background: var(--accent-soft); color: var(--accent-text); }
+
+    .pct-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: var(--r-lg);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .pct-good { background: var(--success-soft); color: var(--success-text); }
+    .pct-mid  { background: var(--warning-soft); color: var(--warning-text); }
+    .pct-low  { background: var(--error-soft);   color: var(--error-text); }
+
+    .alert-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 0 6px;
+    }
+
+    .ap-zero { color: var(--ink-4); }
+    .ap-low  { background: var(--warning-soft); color: var(--warning-text); }
+    .ap-high { background: var(--error-soft);   color: var(--error-text); }
+
+    .arrow-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .arrow-ico {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-4);
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .co-row:hover .arrow-ico { background: var(--accent-soft); color: var(--accent); }
+
+    /* ── Alerts panel ────────────────────────────────────────────────── */
+    .alerts-panel {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-sub);
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .alerts-panel.in { animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    .panel-hd {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-sub);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink-1);
+      letter-spacing: -0.02em;
+    }
+
+    .alert-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border-sub);
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    .alert-row.in { animation: rowIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .alert-row:last-child { border-bottom: none; }
+
+    .alert-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+    .alert-co {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-4);
+      min-width: 150px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .alert-desc { font-size: 13px; color: var(--ink-1); flex: 1; }
+
+    .alert-monto {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-1);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    /* ── Company view — mid panels ───────────────────────────────────── */
+    .mid-grid {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-sub);
+      padding: 24px;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .panel.in { animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    .panel-section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink-1);
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .cat-row {
+      display: grid;
+      grid-template-columns: 148px 1fr 90px;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .cat-row:last-child { margin-bottom: 0; }
+
+    .cat-name { font-size: 13px; color: var(--ink-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .bar-track { height: 5px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.72s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .cat-amt { text-align: right; }
+    .cat-amt-num { font-size: 12px; font-weight: 600; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+    .cat-amt-pct { font-size: 11px; color: var(--ink-4); }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      margin-bottom: 8px;
+      transition: background 0.12s;
+      cursor: default;
+    }
+
+    .status-item:last-child { margin-bottom: 0; }
+    .status-item:hover { background: var(--surface-3); }
+
+    .s-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .s-label { font-size: 13px; color: var(--ink-2); flex: 1; }
+    .s-count { font-size: 16px; font-weight: 700; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+    .s-pct { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--r-lg); }
+
+    .source-split {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-sub);
+    }
+
+    .source-box {
+      flex: 1;
+      background: var(--surface-2);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .source-num { font-size: 20px; font-weight: 700; color: var(--ink-1); line-height: 1; margin-bottom: 4px; }
+    .source-lbl { font-size: 11px; color: var(--ink-3); }
+
+    /* ── Invoice table ───────────────────────────────────────────────── */
+    .table-panel {
+      background: var(--surface);
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-sub);
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    .table-panel.in { animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    .table-hd {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-sub);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .filter-row { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    .fchip {
+      padding: 4px 12px;
+      border-radius: var(--r-lg);
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border-def);
+      background: transparent;
+      color: var(--ink-3);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+
+    .fchip.active { background: var(--ink-1); border-color: var(--ink-1); color: white; }
+    .fchip:hover:not(.active) { border-color: var(--ink-2); color: var(--ink-2); }
+    .fchip:active { transform: scale(0.97); }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-4);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--border-sub);
+      background: var(--bg);
+    }
+
+    th.r { text-align: right; }
+    th.c { text-align: center; }
+
+    td {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border-sub);
+      font-size: 13px;
+      color: var(--ink-2);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    tbody tr {
+      opacity: 0;
+      transform: translateY(4px);
+      transition: background 0.1s;
+    }
+
+    tbody tr.in { animation: rowIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    tbody tr:hover td { background: var(--bg); }
+
+    .td-name { font-weight: 600; color: var(--ink-1); }
+
+    .td-monto {
+      font-weight: 600;
+      color: var(--ink-1);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .td-cur { font-size: 10px; color: var(--ink-4); font-weight: 500; margin-left: 2px; }
+
+    .fuente-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-4); }
+
+    /* ── Reduced motion ──────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      .kpi-card, .panel, .table-panel, .companies-panel, .alerts-panel { opacity: 1 !important; transform: none !important; }
+      .co-row, tbody tr, .alert-row { opacity: 1 !important; transform: none !important; }
+      .view.active { animation: none; }
+    }
+
+    /* ── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .mid-grid { grid-template-columns: 1fr; }
+      .co-th-row, .co-row { grid-template-columns: 1fr 150px 80px 90px 50px 30px; }
+    }
+
+    @media (max-width: 640px) {
+      .view { padding: 16px; }
+      .header-inner { padding: 0 16px; gap: 10px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .co-th-row { display: none; }
+      .co-row { grid-template-columns: 1fr auto; gap: 12px; }
+      .co-row > *:not(:first-child):not(:last-child) { display: none; }
+      .logo-text { display: none; }
+    }
+
+    /* ── Empty state ─────────────────────────────────────────────────── */
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--ink-4);
+      font-size: 13px;
+    }
+
+    /* ── PDF button ──────────────────────────────────────────────────── */
+    .pdf-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: var(--r-sm);
+      border: none;
+      background: transparent;
+      color: var(--ink-4);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      font-family: inherit;
+    }
+
+    .pdf-btn:hover { background: var(--accent-soft); color: var(--accent); }
+    .pdf-btn:active { transform: scale(0.95); }
+
+    .pdf-btn.no-file { cursor: default; opacity: 0.3; }
+    .pdf-btn.no-file:hover { background: transparent; color: var(--ink-4); }
+
+    /* ── Toast ───────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(6px);
+      background: var(--ink-1);
+      color: white;
+      padding: 10px 20px;
+      border-radius: var(--r-lg);
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.2s cubic-bezier(0.16,1,0.3,1), transform 0.2s cubic-bezier(0.16,1,0.3,1);
+      z-index: 999;
+      pointer-events: none;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toast { transition: opacity 0.01ms; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════════════════ -->
+<header class="header">
+  <div class="header-inner">
+    <a class="logo" href="#">
+      <div class="logo-mark">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <span class="logo-text">Domus Global</span>
+    </a>
+
+    <div class="hdiv"></div>
+
+    <div class="view-toggle" id="viewToggle">
+      <button class="toggle-btn active" onclick="switchView('holding', this)">Holding</button>
+      <button class="toggle-btn" onclick="switchView('company', this)">Empresa</button>
+    </div>
+
+    <div class="header-right">
+      <button class="period-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="3" width="12" height="11" rx="2"/><path d="M5 1v4M11 1v4M2 7h12"/>
+        </svg>
+        Junio 2026
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 5l3 3 3-3"/>
+        </svg>
+      </button>
+      <div class="avatar" title="Eduardo Dalmás">ED</div>
+    </div>
+  </div>
+</header>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     VISTA HOLDING
+══════════════════════════════════════════════════════════════════════ -->
+<main id="view-holding" class="view active">
+
+  <!-- Page header -->
+  <div class="page-hd">
+    <div>
+      <h1 class="page-title">Resumen del Holding</h1>
+      <p class="page-sub">13 empresas · Junio 2026</p>
+    </div>
+    <div class="page-meta">
+      Actualizado hace 8 min<br>
+      <span style="color: var(--success-text); font-weight: 500;">● En línea</span>
+    </div>
+  </div>
+
+  <!-- KPI aggregate -->
+  <div class="kpi-grid" id="holdingKpis">
+
+    <!-- Total gastado -->
+    <div class="kpi-card" data-delay="80">
+      <div class="kpi-label">Total gastado</div>
+      <div class="kpi-num"><span class="currency">$</span><span class="count-up" data-target="1847300">0</span></div>
+      <div class="kpi-detail">
+        <span style="color:var(--ink-4)">UYU</span>
+        <span style="color:var(--border-def)">·</span>
+        <span class="delta-up">↑ 8% vs mayo</span>
+      </div>
+    </div>
+
+    <!-- Total facturas -->
+    <div class="kpi-card" data-delay="120">
+      <div class="kpi-label">Facturas registradas</div>
+      <div class="kpi-num"><span class="count-up" data-target="187">0</span></div>
+      <div class="kpi-detail">163 email · 24 WhatsApp</div>
+    </div>
+
+    <!-- Conciliación global -->
+    <div class="kpi-card" data-delay="160" style="padding-right: 88px;">
+      <div class="kpi-label">Conciliación global</div>
+      <div class="kpi-num" style="color: var(--success-text)"><span class="count-up" data-target="156">0</span></div>
+      <div class="kpi-detail">de 187 facturas</div>
+      <div class="kpi-ring">
+        <div style="position:relative;width:56px;height:56px;">
+          <svg class="ring-svg" width="56" height="56" viewBox="0 0 56 56">
+            <circle class="ring-bg" cx="28" cy="28" r="22"/>
+            <circle class="ring-fill" id="holdingRing" cx="28" cy="28" r="22"
+              stroke="var(--success)"
+              stroke-dasharray="138.23"
+              stroke-dashoffset="138.23"/>
+          </svg>
+          <div class="ring-label" style="color: var(--success-text)">83%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alertas -->
+    <div class="kpi-card kpi-card-warn" data-delay="200">
+      <div class="kpi-label">Requieren atención</div>
+      <div class="kpi-num" style="color: var(--warning-text)"><span class="count-up" data-target="31">0</span></div>
+      <div class="kpi-detail">
+        22 pendientes · <span style="color: var(--error-text)">9 sin match</span>
+      </div>
+      <div class="kpi-icon" style="background: var(--warning-soft);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2.5"/>
+        </svg>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Companies ranking -->
+  <div class="section-title">Empresas del holding</div>
+  <div class="companies-panel" id="companiesPanel">
+    <div class="co-th-row">
+      <div class="co-th">Empresa</div>
+      <div class="co-th">Gasto</div>
+      <div class="co-th c">Facturas</div>
+      <div class="co-th c">Conciliadas</div>
+      <div class="co-th c">Alertas</div>
+      <div class="co-th"></div>
+    </div>
+    <div id="companiesList"></div>
+  </div>
+
+  <!-- Alerts section -->
+  <div class="alerts-panel" id="alertsPanel">
+    <div class="panel-hd">
+      <span class="panel-title">Alertas activas</span>
+      <span class="badge badge-pendiente">31 pendientes</span>
+    </div>
+    <div id="alertsList"></div>
+  </div>
+
+</main>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     VISTA EMPRESA
+══════════════════════════════════════════════════════════════════════ -->
+<main id="view-company" class="view">
+
+  <!-- Page header -->
+  <div class="page-hd">
+    <div>
+      <h1 class="page-title" id="coTitle">—</h1>
+      <p class="page-sub" id="coSub">—</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="page-meta" id="coMeta">—</div>
+      <button class="back-btn" onclick="goBack()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M10 13L5 8l5-5"/>
+        </svg>
+        Holding
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI cards empresa -->
+  <div class="kpi-grid" id="coKpis">
+
+    <div class="kpi-card" data-delay="80">
+      <div class="kpi-label">Total gastado</div>
+      <div class="kpi-num"><span class="currency">$</span><span id="co-total">—</span></div>
+      <div class="kpi-detail" id="co-total-detail">—</div>
+    </div>
+
+    <div class="kpi-card" data-delay="120">
+      <div class="kpi-label">Facturas registradas</div>
+      <div class="kpi-num"><span id="co-facturas">—</span></div>
+      <div class="kpi-detail" id="co-facturas-detail">—</div>
+    </div>
+
+    <div class="kpi-card" data-delay="160" id="co-conc-card" style="padding-right: 88px;">
+      <div class="kpi-label">Conciliadas</div>
+      <div class="kpi-num" style="color: var(--success-text)"><span id="co-conc">—</span></div>
+      <div class="kpi-detail" id="co-conc-detail">—</div>
+      <div class="kpi-ring">
+        <div style="position:relative;width:56px;height:56px;">
+          <svg class="ring-svg" width="56" height="56" viewBox="0 0 56 56">
+            <circle class="ring-bg" cx="28" cy="28" r="22"/>
+            <circle class="ring-fill" id="coRing" cx="28" cy="28" r="22"
+              stroke="var(--success)"
+              stroke-dasharray="138.23"
+              stroke-dashoffset="138.23"/>
+          </svg>
+          <div class="ring-label" id="coRingLabel" style="color: var(--success-text)">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-card-warn" data-delay="200">
+      <div class="kpi-label">Requieren atención</div>
+      <div class="kpi-num" style="color: var(--warning-text)"><span id="co-alertas">—</span></div>
+      <div class="kpi-detail" id="co-alertas-detail">—</div>
+      <div class="kpi-icon" style="background: var(--warning-soft);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2.5"/>
+        </svg>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Mid panels -->
+  <div class="mid-grid">
+
+    <!-- Category bars -->
+    <div class="panel" id="panelCats">
+      <div class="panel-section-title">Gasto por categoría</div>
+      <div id="catList"></div>
+    </div>
+
+    <!-- Status breakdown -->
+    <div class="panel" id="panelStatus">
+      <div class="panel-section-title">Estado de conciliación</div>
+      <div id="statusList"></div>
+      <div class="source-split" id="sourceSplit"></div>
+    </div>
+
+  </div>
+
+  <!-- Invoice table -->
+  <div class="table-panel" id="tablePanel">
+    <div class="table-hd">
+      <span class="panel-title">Facturas del período</span>
+      <div class="filter-row">
+        <button class="fchip active" onclick="filterTable('all', this)">Todas</button>
+        <button class="fchip" onclick="filterTable('pendiente', this)">Pendientes</button>
+        <button class="fchip" onclick="filterTable('sin_match', this)">Sin match</button>
+        <button class="fchip" onclick="filterTable('revision', this)">Revisión</button>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Emisor</th>
+          <th>Fecha</th>
+          <th>Categoría</th>
+          <th>Fuente</th>
+          <th class="r">Monto</th>
+          <th class="c">Estado</th>
+          <th class="c">PDF</th>
+        </tr>
+      </thead>
+      <tbody id="invoiceTable"></tbody>
+    </table>
+  </div>
+
+</main>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SCRIPT
+══════════════════════════════════════════════════════════════════════ -->
+<script>
+
+// ── Supabase ─────────────────────────────────────────────────────────────
+const SUPABASE_URL     = 'https://kpsjrvfljhdwiplxllws.supabase.co';
+const SUPABASE_ANON    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtwc2pydmZsamhkd2lwbHhsbHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MTA4NzAsImV4cCI6MjA5NDI4Njg3MH0.7S5YA1DLWXE7g-e10jXsJgPxWTG0oCZKkjdTAoCI0_k';
+let _sb = null;
+
+function getSB() {
+  if (!_sb && window.supabase) _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  return _sb;
+}
+
+// ── Data ────────────────────────────────────────────────────────────────
+// Empresas reales de Supabase — Domus Global
+const COMPANIES_RAW = [
+  { id: '8181d7d1-884b-42cd-b76c-d6b5b08a6410', nombre: 'COREFONE SA',          rut: '216517160012' },
+  { id: 'dcdfed09-f3eb-4b81-9feb-b5f10afa061c', nombre: 'DAINARVIS COMPANY SA', rut: '218278370018' },
+  { id: 'a7df3ef6-64a2-432f-8c35-05d32b1e3c6e', nombre: 'FIZEDOL SA',           rut: '218296770014' },
+  { id: 'fa6bfffa-7191-420e-80e8-fc6434dfdd48', nombre: 'GABREY SA',             rut: '220561840013' },
+  { id: '51ce9945-8202-4606-ad14-1744eeb96318', nombre: 'GALNUS SA',             rut: '219113300011' },
+  { id: '229375ce-363f-4ba2-9f55-e1a04cb80395', nombre: 'GARFORTIN SA',          rut: '218234170013' },
+  { id: '0a724447-151c-4065-8237-3ac0507ab60c', nombre: 'MILBOW SA',             rut: '218902430012' },
+  { id: '9f99a1fd-9ab9-4591-a3b2-29b6920b22a7', nombre: 'MOSEYA SA',             rut: '218363810019' },
+  { id: '773f0859-76a0-4050-b395-70df2eef5671', nombre: 'NOMER COMPANY SA',      rut: '219592220013' },
+  { id: 'e9a6fb3a-1cad-4b61-ba1a-004be879294b', nombre: 'NUBLIT SA',             rut: '216943400014' },
+  { id: 'c9aa2792-a88d-42c3-8b8b-48e0844010ac', nombre: 'PELTERS SA',            rut: '219746780013' },
+  { id: '099c57f0-9527-4dd7-b2dc-3274dfbcccf5', nombre: 'PPRM SRL',              rut: '217641860010' },
+  { id: '8b3c7e7e-ddf7-455e-b593-08320d9fe6df', nombre: 'PROINTERNACIONAL SRL',  rut: '215904850014' },
+  { id: '6e9013d0-fd1a-44cc-b360-b7f41d0972a9', nombre: 'PULMANY SA',            rut: '218926630011' },
+  { id: 'a4d1a229-25cc-4bf9-98e2-1f8669180cf7', nombre: 'QDC TECH SRL',          rut: '219157900014' },
+  { id: '4b4103c6-0b06-4e09-b041-6153d676923d', nombre: 'SUNKLAY SA',            rut: '218909060016' },
+  { id: '85ffbf22-ba77-4c58-a1f8-f096948a583e', nombre: 'UDISEL SA',             rut: '219746900019' },
+  { id: '836f86ab-ab80-4342-ac34-b4ced50f798a', nombre: 'YALFER SA',             rut: '218902980012' },
+];
+
+// Seeds de mock — se reemplazarán con datos reales cuando el workflow ingeste facturas
+const _SEEDS = [
+  { monto: 376100, facturas: 34, pct: 96, alertas: 1 },
+  { monto: 285430, facturas: 28, pct: 82, alertas: 6 },
+  { monto: 312000, facturas: 33, pct: 88, alertas: 4 },
+  { monto: 189300, facturas: 22, pct: 68, alertas: 7 },
+  { monto: 211800, facturas: 25, pct: 76, alertas: 6 },
+  { monto: 142800, facturas: 18, pct: 89, alertas: 2 },
+  { monto: 445200, facturas: 42, pct: 85, alertas: 6 },
+  { monto:  98200, facturas: 12, pct: 75, alertas: 3 },
+  { monto: 156700, facturas: 19, pct: 91, alertas: 2 },
+  { monto:  54600, facturas:  8, pct:100, alertas: 0 },
+  { monto:  89300, facturas: 11, pct: 73, alertas: 3 },
+  { monto: 123400, facturas: 15, pct: 93, alertas: 1 },
+  { monto: 267800, facturas: 27, pct: 79, alertas: 6 },
+  { monto:  78900, facturas:  9, pct:100, alertas: 0 },
+  { monto: 199600, facturas: 21, pct: 95, alertas: 1 },
+  { monto: 320400, facturas: 31, pct: 88, alertas: 4 },
+  { monto:  88500, facturas: 10, pct: 83, alertas: 2 },
+  { monto: 175300, facturas: 24, pct: 87, alertas: 3 },
+];
+
+function _buildCo(raw, s) {
+  const conc   = Math.round(s.facturas * s.pct / 100);
+  const email  = Math.round(s.facturas * 0.78);
+  const sinM   = Math.min(s.alertas, 2);
+  const pend   = Math.max(0, s.alertas - sinM);
+  return {
+    id: raw.id, nombre: raw.nombre, rut: raw.rut,
+    monto: s.monto, facturas: s.facturas, conciliadas: conc,
+    emailCount: email, wpCount: s.facturas - email, alertas: s.alertas,
+    categorias: [
+      { nombre: 'Combustible',     monto: Math.round(s.monto * .30), pct: 30 },
+      { nombre: 'Servicios',       monto: Math.round(s.monto * .25), pct: 25 },
+      { nombre: 'Alimentación',    monto: Math.round(s.monto * .20), pct: 20 },
+      { nombre: 'Insumos oficina', monto: Math.round(s.monto * .15), pct: 15 },
+      { nombre: 'Viajes',          monto: Math.round(s.monto * .10), pct: 10 },
+    ],
+    invoices: [
+      { emisor: 'Shell Uruguay',       fecha:'2026-06-11', categoria:'Combustible',     fuente:'email',    monto: Math.round(s.monto*.09), moneda:'UYU', estado:'conciliada', archivo_url: null },
+      { emisor: 'Proveedor Servicios', fecha:'2026-06-09', categoria:'Servicios',       fuente:'email',    monto: Math.round(s.monto*.07), moneda:'UYU', estado: s.pct>=80 ? 'conciliada':'pendiente', archivo_url: null },
+      { emisor: 'Restaurant Plaza',    fecha:'2026-06-07', categoria:'Alimentación',    fuente:'whatsapp', monto: Math.round(s.monto*.04), moneda:'UYU', estado: s.pct>=90 ? 'conciliada':'pendiente', archivo_url: null },
+      { emisor: 'Supermercado',        fecha:'2026-06-05', categoria:'Insumos oficina', fuente:'email',    monto: Math.round(s.monto*.05), moneda:'UYU', estado:'conciliada', archivo_url: null },
+      { emisor: 'Ancap S.A.',          fecha:'2026-06-03', categoria:'Combustible',     fuente:'email',    monto: Math.round(s.monto*.08), moneda:'UYU', estado:'conciliada', archivo_url: null },
+      ...(pend > 0 ? [{ emisor:'Ticket pendiente',  fecha:'2026-06-02', categoria:'Servicios',       fuente:'whatsapp', monto: Math.round(s.monto*.02), moneda:'UYU', estado:'pendiente',  archivo_url: null }] : []),
+      ...(sinM > 0 ? [{ emisor:'Proveedor sin RUT', fecha:'2026-06-01', categoria:'Insumos oficina', fuente:'email',    monto: Math.round(s.monto*.03), moneda:'UYU', estado:'sin_match',  archivo_url: null }] : []),
+    ],
+  };
+}
+
+const COMPANIES = COMPANIES_RAW.map((raw, i) => _buildCo(raw, _SEEDS[i]));
+
+// Alertas globales — generadas desde los datos de empresas
+const GLOBAL_ALERTS = COMPANIES
+  .filter(c => c.alertas > 0)
+  .flatMap(c => {
+    const rows = [];
+    const inv = c.invoices;
+    const sinMatch = inv.filter(i => i.estado === 'sin_match');
+    const pend     = inv.filter(i => i.estado === 'pendiente');
+    sinMatch.slice(0,1).forEach(i => rows.push({ empresa: c.nombre, desc: `${i.emisor} — sin match en extracto`, monto: i.monto, moneda: i.moneda, severity: 'high' }));
+    pend.slice(0,1).forEach(i => rows.push({ empresa: c.nombre, desc: `${i.emisor} — pendiente de clasificar`, monto: i.monto, moneda: i.moneda, severity: 'mid'  }));
+    return rows;
+  })
+  .slice(0, 12);
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+const fmt    = n => Math.round(n).toLocaleString('es-UY');
+const fmtDate = d => {
+  const [,m,day] = d.split('-');
+  return `${parseInt(day)} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][parseInt(m)-1]}`;
+};
+
+const ESTADO_MAP = {
+  conciliada: { label: 'Conciliada', cls: 'badge-conciliada' },
+  pendiente:  { label: 'Pendiente',  cls: 'badge-pendiente'  },
+  revision:   { label: 'Revisión',   cls: 'badge-revision'   },
+  sin_match:  { label: 'Sin match',  cls: 'badge-sinmatch'   },
+};
+
+function pctClass(pct) {
+  if (pct >= 90) return 'pct-good';
+  if (pct >= 70) return 'pct-mid';
+  return 'pct-low';
+}
+
+function alertPillClass(n) {
+  if (n === 0) return 'ap-zero';
+  if (n <= 3)  return 'ap-low';
+  return 'ap-high';
+}
+
+// ── Animation helpers ────────────────────────────────────────────────────
+function animateCounter(el) {
+  const target = parseInt(el.dataset.target, 10);
+  const dur = 850;
+  const start = performance.now();
+  const large = target > 999;
+
+  (function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - p, 4); // ease-out-quart
+    el.textContent = large ? fmt(Math.round(eased * target)) : Math.round(eased * target);
+    if (p < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+function animateRing(id, pct) {
+  const circumference = 2 * Math.PI * 22; // 138.23
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) el.style.strokeDashoffset = circumference * (1 - pct / 100);
+  }, 200);
+}
+
+function animateBars() {
+  document.querySelectorAll('#catList .bar-fill').forEach((bar, i) => {
+    setTimeout(() => { bar.style.width = bar.dataset.pct + '%'; }, 80 + i * 40);
+  });
+}
+
+function staggerIn(selector, baseDelay = 80, gap = 35) {
+  document.querySelectorAll(selector).forEach((el, i) => {
+    setTimeout(() => el.classList.add('in'), baseDelay + i * gap);
+  });
+}
+
+function triggerKpiCards(gridId, ringId, ringPct) {
+  const cards = document.querySelectorAll(`#${gridId} .kpi-card`);
+  cards.forEach((card, i) => {
+    setTimeout(() => {
+      card.classList.add('in');
+      card.querySelectorAll('.count-up').forEach(animateCounter);
+      if (ringId) animateRing(ringId, ringPct);
+    }, 80 + i * 40);
+  });
+}
+
+// ── View switching ───────────────────────────────────────────────────────
+let currentView = 'holding';
+let activeCompany = null;
+
+function switchView(name, btn) {
+  if (name === currentView && !(name === 'company' && !activeCompany)) return;
+
+  currentView = name;
+
+  // Toggle buttons
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Show/hide views
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+
+  if (name === 'holding') {
+    document.getElementById('view-holding').classList.add('active');
+    renderHolding();
+  } else {
+    // If no company selected, open the first one
+    if (!activeCompany) activeCompany = COMPANIES[0];
+    document.getElementById('view-company').classList.add('active');
+    renderCompany(activeCompany);
+  }
+}
+
+function goBack() {
+  const holdingBtn = document.querySelector('.toggle-btn');
+  switchView('holding', holdingBtn);
+}
+
+function openCompany(company) {
+  activeCompany = company;
+
+  // Update toggle buttons
+  document.querySelectorAll('.toggle-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === 1);
+  });
+
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-company').classList.add('active');
+  renderCompany(company);
+  currentView = 'company';
+}
+
+// ── Render holding view ──────────────────────────────────────────────────
+let holdingRendered = false;
+
+function renderHolding() {
+  if (holdingRendered) return;
+  holdingRendered = true;
+
+  // Totales calculados desde los datos reales de empresas
+  const totalMonto    = COMPANIES.reduce((s, c) => s + c.monto, 0);
+  const totalFacturas = COMPANIES.reduce((s, c) => s + c.facturas, 0);
+  const totalConc     = COMPANIES.reduce((s, c) => s + c.conciliadas, 0);
+  const totalAlertas  = COMPANIES.reduce((s, c) => s + c.alertas, 0);
+  const concPct       = Math.round(totalConc / totalFacturas * 100);
+  const totalPend     = COMPANIES.flatMap(c => c.invoices).filter(i => i.estado === 'pendiente').length;
+  const totalSinM     = COMPANIES.flatMap(c => c.invoices).filter(i => i.estado === 'sin_match').length;
+
+  const kpiCounts = document.querySelectorAll('#holdingKpis .count-up');
+  if (kpiCounts[0]) kpiCounts[0].dataset.target = totalMonto;
+  if (kpiCounts[1]) kpiCounts[1].dataset.target = totalFacturas;
+  if (kpiCounts[2]) kpiCounts[2].dataset.target = totalConc;
+  if (kpiCounts[3]) kpiCounts[3].dataset.target = totalAlertas;
+
+  const alertDetail = document.querySelector('#holdingKpis .kpi-card:nth-child(4) .kpi-detail');
+  if (alertDetail) alertDetail.innerHTML = `${totalPend} pendientes · <span style="color:var(--error-text)">${totalSinM} sin match</span>`;
+
+  const ringLabel = document.querySelector('#holdingKpis .ring-label');
+  if (ringLabel) ringLabel.textContent = concPct + '%';
+
+  document.querySelector('#view-holding .page-sub').textContent = `${COMPANIES.length} empresas · Junio 2026`;
+
+  // Animate KPI cards
+  triggerKpiCards('holdingKpis', 'holdingRing', concPct);
+
+  // Companies list
+  const maxMonto = Math.max(...COMPANIES.map(c => c.monto));
+  const list = document.getElementById('companiesList');
+  list.innerHTML = '';
+
+  COMPANIES.forEach(co => {
+    const pct = Math.round(co.conciliadas / co.facturas * 100);
+    const rel = Math.round(co.monto / maxMonto * 100);
+    list.innerHTML += `
+      <div class="co-row" onclick="openCompany(COMPANIES.find(c => c.id === '${co.id}'))">
+        <div class="co-name-cell">
+          <div class="co-name">${co.nombre}</div>
+          <div class="co-rut">RUT ${co.rut}</div>
+        </div>
+        <div class="spend-col">
+          <div class="spend-track"><div class="spend-fill" data-rel="${rel}"></div></div>
+          <div class="spend-amt">$${fmt(co.monto)}</div>
+        </div>
+        <div style="text-align:center; font-size:14px; font-weight:600; color:var(--ink-1); font-variant-numeric: tabular-nums;">${co.facturas}</div>
+        <div style="text-align:center"><span class="pct-badge ${pctClass(pct)}">${pct}%</span></div>
+        <div style="text-align:center"><span class="alert-pill ${alertPillClass(co.alertas)}">${co.alertas || '—'}</span></div>
+        <div class="arrow-cell"><div class="arrow-ico">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M6 4l4 4-4 4"/>
+          </svg>
+        </div></div>
+      </div>
+    `;
+  });
+
+  // Stagger companies + animate bars
+  setTimeout(() => {
+    document.getElementById('companiesPanel').classList.add('in');
+    staggerIn('#companiesList .co-row', 80, 35);
+    setTimeout(() => {
+      document.querySelectorAll('.spend-fill').forEach((bar, i) => {
+        setTimeout(() => { bar.style.width = bar.dataset.rel + '%'; }, i * 35);
+      });
+    }, 200);
+  }, 300);
+
+  // Alerts
+  const alertsList = document.getElementById('alertsList');
+  alertsList.innerHTML = '';
+  GLOBAL_ALERTS.forEach(a => {
+    const color = a.severity === 'high' ? 'var(--error)' : 'var(--warning)';
+    alertsList.innerHTML += `
+      <div class="alert-row">
+        <div class="alert-dot" style="background: ${color}"></div>
+        <div class="alert-co">${a.empresa}</div>
+        <div class="alert-desc">${a.desc}</div>
+        <div class="alert-monto" style="color: ${a.severity === 'high' ? 'var(--error-text)' : 'var(--warning-text)'}">
+          $${fmt(a.monto)} <span style="font-size:10px; font-weight:500; color:var(--ink-4)">${a.moneda}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  setTimeout(() => {
+    document.getElementById('alertsPanel').classList.add('in');
+    staggerIn('#alertsList .alert-row', 80, 35);
+  }, 500);
+}
+
+// ── Render company view ──────────────────────────────────────────────────
+let currentFilter = 'all';
+
+function renderCompany(co) {
+  const pct = Math.round(co.conciliadas / co.facturas * 100);
+  const pendientes = co.invoices.filter(i => i.estado === 'pendiente').length;
+  const sinMatch   = co.invoices.filter(i => i.estado === 'sin_match').length;
+
+  // Header
+  document.getElementById('coTitle').textContent = co.nombre;
+  document.getElementById('coSub').textContent   = `RUT ${co.rut} · Junio 2026`;
+  document.getElementById('coMeta').innerHTML    = `Actualizado hace 5 min<br><span style="color:var(--success-text);font-weight:500">● En línea</span>`;
+
+  // KPI static values (counter animated separately)
+  const totalEl = document.getElementById('co-total');
+  totalEl.dataset.target = co.monto;
+  totalEl.textContent = '0';
+  document.getElementById('co-total-detail').innerHTML = `<span style="color:var(--ink-4)">UYU</span>`;
+
+  const factEl = document.getElementById('co-facturas');
+  factEl.dataset.target = co.facturas;
+  factEl.textContent = '0';
+  document.getElementById('co-facturas-detail').textContent = `${co.emailCount} email · ${co.wpCount} WhatsApp`;
+
+  const concEl = document.getElementById('co-conc');
+  concEl.dataset.target = co.conciliadas;
+  concEl.textContent = '0';
+  document.getElementById('co-conc-detail').textContent = `de ${co.facturas} facturas`;
+  document.getElementById('coRingLabel').textContent = pct + '%';
+
+  const alertEl = document.getElementById('co-alertas');
+  alertEl.dataset.target = co.alertas;
+  alertEl.textContent = '0';
+  document.getElementById('co-alertas-detail').innerHTML =
+    `${pendientes} pendientes · <span style="color:var(--error-text)">${sinMatch} sin match</span>`;
+
+  // Reset ring
+  const ring = document.getElementById('coRing');
+  ring.style.strokeDashoffset = '138.23';
+  ring.style.transition = 'none';
+  ring.offsetHeight; // force reflow
+  ring.style.transition = '';
+
+  // Reset cards
+  document.querySelectorAll('#coKpis .kpi-card').forEach(c => c.classList.remove('in'));
+  document.querySelectorAll('#panelCats, #panelStatus').forEach(c => c.classList.remove('in'));
+  document.getElementById('tablePanel').classList.remove('in');
+
+  // Trigger KPI animation
+  triggerKpiCards('coKpis', 'coRing', pct);
+
+  // Categories
+  const catList = document.getElementById('catList');
+  catList.innerHTML = '';
+  co.categorias.forEach(cat => {
+    catList.innerHTML += `
+      <div class="cat-row">
+        <div class="cat-name">${cat.nombre}</div>
+        <div class="bar-track"><div class="bar-fill" data-pct="${cat.pct}"></div></div>
+        <div class="cat-amt">
+          <div class="cat-amt-num">$${fmt(cat.monto)}</div>
+          <div class="cat-amt-pct">${cat.pct}%</div>
+        </div>
+      </div>
+    `;
+  });
+
+  // Status breakdown
+  const statusList = document.getElementById('statusList');
+  const concCount = co.invoices.filter(i => i.estado === 'conciliada').length;
+  const pendCount  = co.invoices.filter(i => i.estado === 'pendiente').length;
+  const smCount    = co.invoices.filter(i => i.estado === 'sin_match').length;
+  const revCount   = co.invoices.filter(i => i.estado === 'revision').length;
+
+  statusList.innerHTML = `
+    <div class="status-item">
+      <div class="s-dot" style="background:var(--success)"></div>
+      <span class="s-label">Conciliadas</span>
+      <span class="s-count">${concCount}</span>
+      <span class="s-pct badge-conciliada">${Math.round(concCount/co.facturas*100)}%</span>
+    </div>
+    <div class="status-item">
+      <div class="s-dot" style="background:var(--warning)"></div>
+      <span class="s-label">Pendientes</span>
+      <span class="s-count">${pendCount}</span>
+      <span class="s-pct badge-pendiente">${Math.round(pendCount/co.facturas*100)}%</span>
+    </div>
+    <div class="status-item">
+      <div class="s-dot" style="background:var(--ink-4)"></div>
+      <span class="s-label">Sin match</span>
+      <span class="s-count">${smCount}</span>
+      <span class="s-pct badge-sinmatch">${Math.round(smCount/co.facturas*100)}%</span>
+    </div>
+    ${revCount > 0 ? `
+    <div class="status-item">
+      <div class="s-dot" style="background:var(--error)"></div>
+      <span class="s-label">En revisión</span>
+      <span class="s-count">${revCount}</span>
+      <span class="s-pct badge-revision">${Math.round(revCount/co.facturas*100)}%</span>
+    </div>` : ''}
+  `;
+
+  document.getElementById('sourceSplit').innerHTML = `
+    <div class="source-box">
+      <div class="source-num">${co.emailCount}</div>
+      <div class="source-lbl">Email</div>
+    </div>
+    <div class="source-box">
+      <div class="source-num">${co.wpCount}</div>
+      <div class="source-lbl">WhatsApp</div>
+    </div>
+  `;
+
+  // Animate mid panels
+  setTimeout(() => {
+    document.getElementById('panelCats').classList.add('in');
+    setTimeout(() => { animateBars(); }, 150);
+  }, 280);
+  setTimeout(() => { document.getElementById('panelStatus').classList.add('in'); }, 350);
+
+  // Table
+  currentFilter = 'all';
+  document.querySelectorAll('.fchip').forEach((c, i) => c.classList.toggle('active', i === 0));
+  renderTable(co.invoices, 'all');
+  setTimeout(() => { document.getElementById('tablePanel').classList.add('in'); }, 420);
+}
+
+function renderTable(invoices, filter) {
+  const tbody = document.getElementById('invoiceTable');
+  tbody.innerHTML = '';
+  const rows = invoices.filter(inv => filter === 'all' || inv.estado === filter);
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No hay facturas con este estado.</div></td></tr>`;
+    const tr = tbody.querySelector('tr');
+    tr.style.opacity = 1;
+    tr.style.transform = 'none';
+    return;
+  }
+
+  const emailIcon = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="9" rx="1.5"/><path d="M2 6l6 4 6-4"/></svg>`;
+  const wpIcon    = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H3a1 1 0 00-1 1v9l3-3h8a1 1 0 001-1V3a1 1 0 00-1-1z"/></svg>`;
+
+  rows.forEach((inv, idx) => {
+    const est = ESTADO_MAP[inv.estado];
+    const fIcon = inv.fuente === 'email' ? emailIcon : wpIcon;
+    const fLabel = inv.fuente === 'email' ? 'Email' : 'WhatsApp';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="td-name">${inv.emisor}</td>
+      <td>${fmtDate(inv.fecha)}</td>
+      <td><span class="badge badge-cat">${inv.categoria}</span></td>
+      <td><span class="fuente-pill">${fIcon} ${fLabel}</span></td>
+      <td class="td-monto">$${fmt(inv.monto)}<span class="td-cur">${inv.moneda}</span></td>
+      <td style="text-align:center"><span class="badge ${est.cls}">${est.label}</span></td>
+      <td style="text-align:center">
+        ${inv.fuente === 'email'
+          ? `<button class="pdf-btn" onclick="openPDF('${inv.emisor.replace(/'/g,"\\'")}','${inv.fecha}','${inv.archivo_url||''}')" title="Ver PDF original">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5L9 1z"/>
+                <path d="M9 1v4h4M5 9h6M5 11.5h4"/>
+              </svg>
+             </button>`
+          : `<button class="pdf-btn no-file" title="Sin adjunto digital" disabled>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5L9 1z"/>
+                <path d="M9 1v4h4"/>
+              </svg>
+             </button>`
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+    setTimeout(() => tr.classList.add('in'), 50 + idx * 35);
+  });
+}
+
+function filterTable(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.fchip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (activeCompany) renderTable(activeCompany.invoices, filter);
+}
+
+// ── PDF viewer ───────────────────────────────────────────────────────────
+async function openPDF(emisor, fecha, archivoUrl) {
+  if (!archivoUrl) {
+    showToast('📄 ' + emisor + ' — PDF disponible cuando el workflow ingeste la factura real');
+    return;
+  }
+  const sb = getSB();
+  if (!sb) { showToast('Cliente Supabase no disponible'); return; }
+  showToast('⏳ Generando enlace seguro...');
+  try {
+    const { data, error } = await sb.storage.from('facturas').createSignedUrl(archivoUrl, 120);
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank');
+  } catch (e) {
+    showToast('❌ ' + (e.message || 'Error al obtener el PDF'));
+  }
+}
+
+let _toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderHolding();
+});
+
+</script>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</body>
+</html>

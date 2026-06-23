@@ -1,0 +1,18 @@
+# Dependencias
+node_modules/
+dist/
+
+# Variables de entorno (nunca commitear)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# QR codes y archivos temporales
+qr-*.png
