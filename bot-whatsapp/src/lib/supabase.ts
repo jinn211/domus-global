@@ -40,13 +40,70 @@ export async function getEmployeeByPhone(phone: string): Promise<Employee | null
   };
 }
 
+export async function getCompanyById(id: string): Promise<{ id: string; nombre: string } | null> {
+  const { data } = await supabase.from('companies').select('id, nombre').eq('id', id).maybeSingle();
+  return (data as { id: string; nombre: string } | null) ?? null;
+}
+
+/** Empresa comodín para facturas cuya empresa del holding no se pudo determinar. */
+export const NO_IDENTIFICADO_ID = '9ecf5160-11f5-434e-945f-38078d0076bf';
+
+export interface Company {
+  id: string;
+  nombre: string;
+}
+
+/**
+ * Cache en memoria con TTL para catálogos que cambian rarísimo (categorías,
+ * empresas). Antes se pegaba a Supabase en CADA mensaje entrante; ahora una vez
+ * cada TTL. Un cambio en la DB tarda como mucho el TTL en reflejarse.
+ */
+const CATALOGO_TTL_MS = 5 * 60_000;
+function memo<T>(cargar: () => Promise<T>): () => Promise<T> {
+  let valor: T | undefined;
+  let vence = 0;
+  let enVuelo: Promise<T> | null = null;
+  return async () => {
+    if (valor !== undefined && Date.now() < vence) return valor;
+    if (enVuelo) return enVuelo; // coalescing: llamadas simultáneas comparten el fetch
+    enVuelo = cargar()
+      .then((v) => {
+        valor = v;
+        vence = Date.now() + CATALOGO_TTL_MS;
+        return v;
+      })
+      .finally(() => {
+        enVuelo = null;
+      });
+    return enVuelo;
+  };
+}
+
 export interface Category {
   id: string;
   nombre: string;
   descripcion: string | null;
 }
 
-export async function getCategories(): Promise<Category[]> {
+/**
+ * Empresas reales del holding, para ofrecerle la lista al admin cuando la factura
+ * no se pudo imputar sola. Excluye los comodines ("No Identificado", "Empresa
+ * Demo"): no son opciones válidas para elegir. Cacheado en memoria (ver memo).
+ */
+export const getCompaniesElegibles = memo(async (): Promise<Company[]> => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('id, nombre')
+    .eq('activo', true)
+    .not('id', 'eq', NO_IDENTIFICADO_ID)
+    .not('nombre', 'eq', 'Empresa Demo')
+    .order('nombre');
+  if (error) throw error;
+  return data ?? [];
+});
+
+/** Categorías activas, en orden. Cacheado en memoria (ver memo). */
+export const getCategories = memo(async (): Promise<Category[]> => {
   const { data, error } = await supabase
     .from('categories')
     .select('id, nombre, descripcion')
@@ -54,11 +111,39 @@ export async function getCategories(): Promise<Category[]> {
     .order('orden');
   if (error) throw error;
   return data ?? [];
+});
+
+/** Foto/factura de WhatsApp encolada esperando que se termine la anterior. */
+export interface WaMediaItem {
+  archivo_url: string | null;
+  ocr: string;
+  company_id: string;
+  company_nombre: string | null;
 }
 
 export interface WaPending {
   archivo_url: string | null;
   ocr: string;
+  /** Cola de facturas (ids) esperando categoría por WhatsApp (flujo mail). */
+  cola_facturas?: string[];
+  /** Cola de fotos de WhatsApp esperando su turno (flujo foto). */
+  cola_media?: WaMediaItem[];
+  /** ISO timestamp: desde cuándo se espera confirmación de este borrador. */
+  recibido_at?: string;
+  /** Si ya se envió el recordatorio de las 2 horas para este borrador. */
+  recordatorio_enviado?: boolean;
+  /**
+   * Posición (1-based) de la factura en curso dentro del lote que mandó el
+   * empleado. El total del lote es lote_pos + cola_media.length. Sirve para que
+   * el bot y el empleado hablen de "la factura 2 de 3" y no se confundan.
+   */
+  lote_pos?: number;
+  /**
+   * Flujo mail→WhatsApp: categoría ya elegida para la factura en curso, cuando
+   * falta que el empleado mande la descripción obligatoria. El próximo texto que
+   * llegue se toma como esa descripción.
+   */
+  categoria_pendiente?: string;
 }
 
 export interface WaSession {

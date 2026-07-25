@@ -1,66 +1,114 @@
-# Domus — Bot de WhatsApp de Gastos
+# Domus — Bot de gastos
 
-Servicio standalone (Node.js + TypeScript) que corre en el VPS. Recibe fotos de tickets por WhatsApp (Evolution API), las procesa con **Mistral (OCR)** y un agente **Claude Haiku** que conversa con el empleado para confirmar los datos y guardarlos en **Supabase**.
+Servicio Node.js + TypeScript que corre en el VPS. Recibe comprobantes de gasto por **WhatsApp** (foto del ticket) y por **mail** (factura adjunta), los lee con **Mistral OCR**, conversa con la persona para completar lo que falte y los guarda en **Supabase**.
 
-## Arquitectura
+Un empleado saca la foto y contesta dos preguntas; del otro lado queda la factura cargada, categorizada y con el archivo asociado, lista para conciliar contra el banco.
+
+---
+
+## Los cuatro flujos
+
+### 1. WhatsApp (`index.ts` → `agent.ts`)
 
 ```
-WhatsApp ──(webhook messages.upsert)──▶ Express POST /webhook
-                                              │
-                    1. Parsear evento (teléfono, tipo, texto, media)
-                    2. Whitelist: employees por teléfono → empresa  (si no: rechazar)
-                    3. Cargar historial de conversación del teléfono
-                    4. Agente Claude Haiku (tool use)  ◀── system prompt + categorías
-                          tools:
-                            • ocr_factura(image)      → Mistral OCR, devuelve texto
-                            • guardar_factura(campos) → Supabase invoices + Storage
-                       (loop hasta que produce un texto de respuesta)
-                    5. Enviar respuesta por Evolution (sendText)
-                    6. Persistir historial actualizado
+WhatsApp ──(webhook messages.upsert)──▶ POST /webhook
+   │
+   ├─ whitelist por teléfono → empleado + empresa   (desconocido: se rechaza)
+   ├─ lock por teléfono → los mensajes de una persona se procesan de a uno
+   ├─ OCR (Mistral) en paralelo al agente
+   └─ agente Claude Sonnet con tools:
+         ocr_factura · guardar_factura · consultar_gastos
 ```
 
-## Reglas del agente (Haiku)
+El agente **no ve la foto**: se le inyecta el texto del OCR. Pide la categoría y la descripción cuando son obligatorias, confirma antes de guardar y acepta correcciones.
 
-- **No ve la foto.** El OCR (Mistral) corre en paralelo y se le inyecta el **texto extraído**, no la imagen.
-- Si el OCR viene **vacío o ilegible** → pide que saquen otra foto mejor.
-- **Pide el tipo de gasto** (una de las categorías) y cualquier dato que falte.
-- **Asocia los mensajes de texto con la foto** para enriquecer (ej: foto + "esto fue nafta de la camioneta" = la misma factura). La memoria por teléfono lo permite.
-- **Confirma los datos antes de guardar** y acepta correcciones.
+### 2. Mail (`email-processor.ts`)
+
+Poller de Gmail cada 60s. Extrae los datos de la factura adjunta con Haiku, identifica al remitente contra el mapa de remitentes conocidos y le escribe por WhatsApp para que confirme la categoría. Si no contesta, `completion.ts` recuerda a las 2h y categoriza solo a las 24h.
+
+### 3. Cierre mensual (`lib/cierre.ts`)
+
+Poller cada 30 min. Al cerrar el período arma el paquete de cada empresa (CSV + comprobantes en ZIP) y lo entrega. Reintenta hasta 5 veces antes de darse por vencido; si el ZIP pasa los 20 MB lo sube a Storage y manda un link firmado.
+
+### 4. Vigilancia (`lib/alertas.ts` + `vigilante.ts`)
+
+Dos cosas distintas, a propósito:
+
+- **`alertas.ts`** — avisa cuando algo **se rompe**. Cualquier módulo llama a `alertar(...)` y sigue de largo; el módulo traduce el error crudo a algo accionable ("Anthropic sin créditos: el bot no procesa nada hasta recargar") y lo manda por WhatsApp a los devs. Es **solo de salida**: importa `sendText` y nada más, así que no puede leer ni responder mensajes. Nunca lanza y nunca se llama a sí mismo (si lo caído es WhatsApp, sería un bucle).
+- **`vigilante.ts`** — busca lo que quedó **mal sin romperse**: una fecha imposible, una factura sin categoría, un archivo que nunca se asoció a nada. Nada de eso lanza un error, así que sin este barrido nadie se entera. Corre cada 3 días, arregla lo que el OCR prueba y manda un resumen de lo que arregló y lo que hay que mirar a mano.
+
+Reglas del vigilante, deliberadas: **nunca toca `monto` ni `moneda`** (un número mal en plata se propaga a la conciliación contra el banco; esa decisión la toma una persona, el bot solo reporta), nunca borra una factura, corrige solo si el OCR lo prueba, deja constancia en `datos_extra.correccion_automatica` y tiene tope de 20 correcciones por corrida. `VIGILANTE_DRY=1` lo corre en seco: recorre y arma el resumen sin escribir.
+
+---
 
 ## Estructura
 
 ```
 src/
-  index.ts            # Express + webhook
-  config.ts           # carga y valida env
+  index.ts              Express + webhook + arranque de los pollers
+  config.ts             carga y valida el env (zod)
+  agent.ts              agente Sonnet: system prompt, tools, guard anti-alucinación
+  email-processor.ts    poller de Gmail + extracción a JSON con Haiku
+  completion.ts         completar por WhatsApp lo que falta de las facturas de mail
+  whatsapp-drafts.ts    recordatorio a las 2h y auto-guardado a las 24h
+  vigilante.ts          revisión de datos cada 3 días (arregla y reporta)
+  admins.ts             quién puede asignar empresa y corregir
   lib/
-    evolution.ts      # cliente Evolution (descargar media, enviar texto)
-    supabase.ts       # cliente Supabase (whitelist, invoices, storage, historial)
-    mistral.ts        # OCR
-    agent.ts          # armado del agente Haiku + loop de tools
+    evolution.ts        cliente de WhatsApp (bajar media, mandar texto)
+    supabase.ts         base + storage + catálogo cacheado
+    mistral.ts          OCR
+    gmail.ts            cliente de Gmail
+    cierre.ts           armado y envío del paquete de cierre
+    alertas.ts          avisos de error a los devs (solo salida)
+    lock.ts             lock por teléfono, compartido entre webhook y barridos
+    interactions.ts     log de interacciones a disco
   tools/
-    ocr.ts            # tool ocr_factura
-    guardar.ts        # tool guardar_factura
+    ocr.ts · guardar.ts · consultar.ts
 ```
 
-## Estado / memoria de la conversación
+### Dos decisiones que no se ven en el código
 
-Cada empleado (teléfono) tiene una conversación con contexto. El historial se guarda en Supabase (tabla `wa_sessions`, pendiente de crear) para que sobreviva reinicios del proceso. El estado de la factura en curso vive como borrador en `invoices` (`estado_conciliacion='revision'`) hasta que el agente la confirma.
+**El teléfono no es parámetro de tool.** `consultar_gastos` toma el teléfono del contexto del webhook, no de lo que el modelo escribe. Si fuera un parámetro, alcanzaría con convencer al agente de pasar otro número para leer los gastos de un tercero.
 
-## Variables de entorno
+**El hash de deduplicación puede ser `null`.** `md5(rut|nro|monto)` identifica una factura, pero un ticket sin RUT ni número no tiene clave real: si se hasheara igual, dos tickets distintos del mismo monto colisionarían y el segundo se rechazaría como duplicado. Devolver `null` lo deja fuera del índice UNIQUE (en Postgres, NULL nunca colisiona).
 
-Ver `.env.example`. Claves necesarias: `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_KEY` + `EVOLUTION_INSTANCE`, `MISTRAL_API_KEY`.
+---
 
-## Correr local
+## Correr y desplegar
+
+Producción, en el VPS:
+
+```bash
+cd /root/domus-bot
+docker compose up -d --build
+docker compose logs -f
+```
+
+El `.env` (no versionado, `chmod 600`) tiene las claves; `docker-compose.yml` define puerto, volumen y rotación de logs. `data/` se monta desde el host: ahí viven el log de interacciones y el estado de los pollers, así que **sobrevive a los redeploys**.
+
+Local:
 
 ```bash
 npm install
-cp .env.example .env   # completar claves
+cp .env.example .env    # completar claves
 npm run dev
 ```
 
-El webhook queda en `POST /webhook`. En Evolution se configura apuntando a la URL pública del servicio con el evento `messages.upsert`.
+Evolution apunta el webhook `messages.upsert` a la URL pública del servicio.
 
-## Deploy
+### Datos que no van al repo
 
-Pensado para correr en Easypanel (VPS Hostinger) como app Node o contenedor Docker, exponiendo el puerto con un dominio para que Evolution alcance el webhook. (Dockerfile pendiente.)
+El repo es público, así que los mails y celulares de la gente viven en `data/`, que está fuera de git:
+
+| archivo | qué es | si falta |
+|---|---|---|
+| `data/remitentes.json` | mail → teléfono de quien reporta el gasto | las facturas que llegan por mail quedan en `sin_contacto` y nadie las completa (avisa por WhatsApp) |
+| `data/admins.json` | quiénes pueden cargar de cualquier empresa | nadie es admin (avisa en los logs al arrancar) |
+
+Hay un `.example.json` de cada uno con el formato. En un deploy nuevo hay que copiarlos a mano.
+
+### Variables
+
+Ver `.env.example`. Obligatorias: `ANTHROPIC_API_KEY`, `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_URL` + `EVOLUTION_API_KEY` + `EVOLUTION_INSTANCE`, `MISTRAL_API_KEY`, `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` + `GMAIL_REFRESH_TOKEN`.
+
+Opcionales: `ANTHROPIC_MODEL` (agente, default Haiku; en producción corre Sonnet), `ANTHROPIC_MODEL_EXTRACCION` (OCR→JSON, Haiku alcanza), `WEBHOOK_TOKEN`, `ALERTAS_PHONES` (destinatarios de las alertas, separados por coma), `VIGILANTE_DRY`.

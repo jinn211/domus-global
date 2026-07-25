@@ -1,0 +1,27 @@
+# Bot de gastos Domus Global
+#
+#   docker compose up -d --build    levantar / redeployar tras cambiar código
+#   docker compose logs -f          ver logs en vivo
+#   docker compose down             bajar
+#
+# Las credenciales se leen de .env (que NO va al repo). Antes se pasaban a mano
+# en el docker run, así que quedaban en el historial de bash y en docker inspect,
+# y si alguien reiniciaba sin ese comando exacto el bot se quedaba sin config.
+
+services:
+  domus-bot:
+    build: .
+    image: domus-bot:latest
+    container_name: domus-bot
+    restart: always
+    ports:
+      - "3300:3000"
+    env_file: .env
+    volumes:
+      # facturas en curso, log de interacciones y estado de los cierres
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"   # sin esto los logs crecen sin límite hasta llenar el disco
+        max-file: "5"
