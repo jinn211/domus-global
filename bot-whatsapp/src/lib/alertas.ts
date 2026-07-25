@@ -12,6 +12,9 @@ import { sendText } from './evolution.js';
  *  - NUNCA se llama a sí misma. Si falla el envío por WhatsApp no se alerta de
  *    eso (sería un bucle infinito).
  *  - Anti-spam: un poller que falla cada 60s no manda 60 mensajes por hora.
+ *  - Solo avisa de lo que PERSISTE. Un corte de red de dos segundos se arregla
+ *    solo en el siguiente ciclo del poller; avisar de eso es ruido, y una alerta
+ *    que suena por nada deja de mirarse. Ver `transitorio` mas abajo.
  */
 
 // Destinatarios de las alertas técnicas (Juani y Agustín, no el cliente).
@@ -28,12 +31,43 @@ if (!DEVS.length) {
 const VENTANA_MS = 30 * 60_000;
 const ultimaAlerta = new Map<string, { enviadaAt: number; repeticiones: number }>();
 
+/**
+ * Errores transitorios: cuantas veces seguidas tienen que fallar antes de avisar.
+ * Con el poller de mail cada 60s, 3 = la red estuvo caida ~3 minutos de verdad.
+ */
+const UMBRAL_TRANSITORIO = 3;
+/** Si entre dos fallas pasa mas que esto, no fueron "seguidas": arranca de cero. */
+const RACHA_MS = 5 * 60_000;
+const rachas = new Map<string, { fallos: number; desde: number; ultimo: number }>();
+
+/**
+ * Al arrancar hay medio minuto de ruido normal (DNS del contenedor, pollers que
+ * salen todos juntos). Nada transitorio avisa en esa ventana.
+ */
+const ARRANQUE = Date.now();
+const GRACIA_ARRANQUE_MS = 90_000;
+
+/**
+ * Apagado a proposito (un `docker compose up` manda SIGTERM). Lo que falle
+ * mientras nos estamos yendo no es una falla: es el redeploy. Sin esto, cada
+ * cambio que le hacemos al sistema disparaba una alerta de red.
+ */
+let apagando = false;
+export function marcarApagado(): void {
+  apagando = true;
+}
+
 interface Diagnostico {
   titulo: string;
   significa: string;
   queHacer: string;
   /** true = el bot no puede operar (avisa aunque sea repetido, cada ventana). */
   critico: boolean;
+  /**
+   * true = se arregla solo si el problema no persiste (un blip de red, un rate
+   * limit). No avisa hasta que falle UMBRAL_TRANSITORIO veces seguidas.
+   */
+  transitorio?: boolean;
 }
 
 /**
@@ -76,6 +110,7 @@ export function diagnosticar(err: unknown): Diagnostico {
       significa: 'Demasiadas consultas juntas. Suele ser pasajero y se reintenta solo.',
       queHacer: 'Si se repite seguido, subir el tier de la cuenta o espaciar la carga.',
       critico: false,
+      transitorio: true,
     };
   }
   if (status === 529 || /overloaded/i.test(msg)) {
@@ -84,6 +119,7 @@ export function diagnosticar(err: unknown): Diagnostico {
       significa: 'Problema temporal del lado de Anthropic, no del bot.',
       queHacer: 'Esperar unos minutos. Si dura, ver status.anthropic.com.',
       critico: false,
+      transitorio: true,
     };
   }
 
@@ -149,6 +185,7 @@ export function diagnosticar(err: unknown): Diagnostico {
       significa: 'No se pudieron leer los mails nuevos en este ciclo.',
       queHacer: 'Suele ser pasajero; si persiste revisar los permisos de la cuenta.',
       critico: false,
+      transitorio: true,
     };
   }
 
@@ -193,6 +230,7 @@ export function diagnosticar(err: unknown): Diagnostico {
       significa: 'El bot no pudo conectarse a un servicio externo. Suele ser pasajero.',
       queHacer: 'Si se repite, revisar el VPS y la conectividad.',
       critico: false,
+      transitorio: true,
     };
   }
   if (/ENOSPC|no space left/i.test(msg)) {
@@ -237,8 +275,32 @@ export async function alertar(
 
     // Anti-spam: mismo contexto + mismo tipo de error = misma clave.
     const clave = `${contexto}::${d.titulo}`;
+    const ahoraMs = Date.now();
+
+    // ── Filtro de lo que se cura solo ────────────────────────────────────────
+    // Un error critico (key vencida, sin creditos) avisa siempre y al toque:
+    // eso no se arregla esperando, y si lo rompi con un deploy quiero saberlo ya.
+    let racha = 0;
+    if (d.transitorio) {
+      if (apagando) {
+        console.log(`[alertas] apagandose, ignoro: ${d.titulo} (${contexto})`);
+        return;
+      }
+      if (ahoraMs - ARRANQUE < GRACIA_ARRANQUE_MS) {
+        console.log(`[alertas] recien arrancado, ignoro: ${d.titulo} (${contexto})`);
+        return;
+      }
+      const r = rachas.get(clave);
+      const seguidas = r && ahoraMs - r.ultimo < RACHA_MS;
+      racha = seguidas ? r!.fallos + 1 : 1;
+      rachas.set(clave, { fallos: racha, desde: seguidas ? r!.desde : ahoraMs, ultimo: ahoraMs });
+      if (racha < UMBRAL_TRANSITORIO) {
+        console.warn(`[alertas] ${d.titulo} (${contexto}) — ${racha}/${UMBRAL_TRANSITORIO}, espero a ver si se recupera`);
+        return;
+      }
+    }
     const prev = ultimaAlerta.get(clave);
-    const ahora = Date.now();
+    const ahora = ahoraMs;
     if (prev && ahora - prev.enviadaAt < VENTANA_MS) {
       prev.repeticiones++;
       return; // silenciado: se informa al reabrirse la ventana
@@ -254,6 +316,10 @@ export async function alertar(
       `*Significa:* ${d.significa}`,
       `*Qué hacer:* ${d.queHacer}`,
     ];
+    if (racha >= UMBRAL_TRANSITORIO) {
+      const min = Math.max(1, Math.round((ahoraMs - (rachas.get(clave)?.desde ?? ahoraMs)) / 60_000));
+      lineas.push(`*Ojo:* viene fallando ${racha} veces seguidas hace ${min} min, no es un corte pasajero.`);
+    }
     if (extra && Object.keys(extra).length) {
       lineas.push(``, `*Datos:* ${Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(' · ')}`);
     }
@@ -272,6 +338,7 @@ export async function alertar(
         console.error('[alertas] no pude avisar a ' + dev.nombre + ':', (e as Error).message),
       );
     }
+    rachas.delete(clave);
     console.log(`[alertas] avisado: ${d.titulo} (${contexto})`);
   } catch (e) {
     console.error('[alertas] fallo interno del alertador:', (e as Error).message);

@@ -24,7 +24,7 @@ import { isAdminPhone } from './admins.js';
 import { runQueuedPhoto, initWhatsappDraftSweep } from './whatsapp-drafts.js';
 import { initVigilante } from './vigilante.js';
 import { initCierrePoller } from './lib/cierre.js';
-import { alertar } from './lib/alertas.js';
+import { alertar, marcarApagado } from './lib/alertas.js';
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -355,10 +355,24 @@ async function handleEvent(body: any): Promise<void> {
   }
 }
 
-app.listen(config.PORT, () => {
+const server = app.listen(config.PORT, () => {
   console.log(`Domus bot escuchando en :${config.PORT}`);
   initEmailPoller();
   initCierrePoller();
   initWhatsappDraftSweep();
   initVigilante();
 });
+
+// Apagado ordenado. `docker compose up` manda SIGTERM al contenedor viejo; sin
+// esto, los pollers quedaban a mitad de una request contra Gmail o Supabase, esa
+// request moria con error de red y disparaba una alerta. Un deploy no es una
+// falla: avisamos al alertador que nos estamos yendo y cerramos.
+for (const senal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(senal, () => {
+    console.log(`[apagado] ${senal} recibido, cerrando`);
+    marcarApagado();
+    server.close(() => process.exit(0));
+    // Si alguna conexion queda colgada, no esperamos los 10s del SIGKILL.
+    setTimeout(() => process.exit(0), 5_000).unref();
+  });
+}
