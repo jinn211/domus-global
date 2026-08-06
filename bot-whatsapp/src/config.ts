@@ -27,6 +27,12 @@ const schema = z.object({
   GMAIL_CLIENT_ID: z.string().optional(),
   GMAIL_CLIENT_SECRET: z.string().optional(),
   GMAIL_REFRESH_TOKEN: z.string().optional(),
+
+  // Google Drive — opcionales: si no estan, el respaldo diario no arranca.
+  // Cliente OAuth aparte del de Gmail a proposito: revocar uno no tumba el otro.
+  DRIVE_CLIENT_ID: z.string().optional(),
+  DRIVE_CLIENT_SECRET: z.string().optional(),
+  DRIVE_REFRESH_TOKEN: z.string().optional(),
 });
 
 export const config = schema.parse(process.env);

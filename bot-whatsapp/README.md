@@ -6,7 +6,7 @@ Un empleado saca la foto y contesta dos preguntas; del otro lado queda la factur
 
 ---
 
-## Los cuatro flujos
+## Los cinco flujos
 
 ### 1. WhatsApp (`index.ts` → `agent.ts`)
 
@@ -45,6 +45,19 @@ Reglas del vigilante, deliberadas: **nunca toca `monto` ni `moneda`** (un númer
 
 ---
 
+### 5. Respaldo a Drive (`respaldo.ts` + `lib/drive.ts`)
+
+Copia diaria de los comprobantes a Google Drive. Supabase Storage es el original; esto es la segunda copia.
+
+Dos decisiones que valen la pena entender:
+
+- **No lleva registro local de lo copiado.** En cada corrida le pregunta a Drive qué hay y sube solo lo que falta. Un archivo de control se pierde al recrear el contenedor y entonces duplica todo; el destino nunca miente.
+- **Renombra los archivos.** En Storage se llaman `0914ef5e-049a-...jpg`, que como respaldo no sirve de nada: son archivos que nadie sabe qué son. En Drive quedan como `NUBLIT SA/2026-08/2026-08-04 · La Perdiz · UYU 1.234,00 · 0914ef5e.jpg`. El pedacito de UUID al final no es decorativo: garantiza que dos gastos iguales del mismo día no colisionen, y es lo que hace estable la comparación con lo que ya está.
+
+Los archivos sin factura asociada (gastos que nadie rindió) van a `_sin registrar`, para que no se pierdan mientras se decide qué hacer con ellos.
+
+Usa un cliente OAuth propio, separado del de Gmail: revocar uno no tumba el otro. El permiso es `drive.file`, el mínimo posible — solo ve los archivos que él mismo crea, no el resto del Drive.
+
 ## Estructura
 
 ```
@@ -56,6 +69,7 @@ src/
   completion.ts         completar por WhatsApp lo que falta de las facturas de mail
   whatsapp-drafts.ts    recordatorio a las 2h y auto-guardado a las 24h
   vigilante.ts          revisión de datos cada 3 días (arregla y reporta)
+  respaldo.ts           copia diaria de comprobantes a Drive
   admins.ts             quién puede asignar empresa y corregir
   lib/
     evolution.ts        cliente de WhatsApp (bajar media, mandar texto)
@@ -65,6 +79,7 @@ src/
     cierre.ts           armado y envío del paquete de cierre
     alertas.ts          avisos de error a los devs (solo salida)
     latido.ts           chequeo de conexión a la base cada 5 min
+    drive.ts            cliente mínimo de Google Drive
     lock.ts             lock por teléfono, compartido entre webhook y barridos
     interactions.ts     log de interacciones a disco
   tools/
