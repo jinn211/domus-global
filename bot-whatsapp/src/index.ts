@@ -25,6 +25,7 @@ import { runQueuedPhoto, initWhatsappDraftSweep } from './whatsapp-drafts.js';
 import { initVigilante } from './vigilante.js';
 import { initCierrePoller } from './lib/cierre.js';
 import { alertar, marcarApagado } from './lib/alertas.js';
+import { initLatido } from './lib/latido.js';
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -361,6 +362,7 @@ const server = app.listen(config.PORT, () => {
   initCierrePoller();
   initWhatsappDraftSweep();
   initVigilante();
+  initLatido();
 });
 
 // Apagado ordenado. `docker compose up` manda SIGTERM al contenedor viejo; sin

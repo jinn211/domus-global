@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import { alertar } from '../lib/alertas.js';
 
 /**
  * Consulta de "mis facturas".
@@ -61,6 +62,7 @@ export async function consultarMisFacturas(
   const { data, error } = await q;
   if (error) {
     console.error('[consultar] error:', error);
+    void alertar('consulta de gastos del empleado', new Error(error.message));
     return 'ERROR: no pude consultar las facturas en este momento. Pedile al empleado que reintente en un rato.';
   }
   if (!data?.length) {

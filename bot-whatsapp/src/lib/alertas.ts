@@ -190,6 +190,18 @@ export function diagnosticar(err: unknown): Diagnostico {
   }
 
   // ── Supabase / base de datos ────────────────────────────────────────────────
+  if (/Unregistered API key|Invalid API key|No API key found|JWT expired/i.test(msg)) {
+    return {
+      titulo: 'La key de Supabase no sirve',
+      significa:
+        'El bot no puede leer NI escribir NADA: ni facturas, ni sesiones, ni archivos. ' +
+        'Recibe los mensajes de la gente y no les puede contestar. Está caído por completo.',
+      queHacer:
+        'Generar una secret key nueva en Supabase → Project Settings → API Keys, ' +
+        'ponerla en SUPABASE_SERVICE_ROLE_KEY del .env y reiniciar con docker compose up -d.',
+      critico: true,
+    };
+  }
   if (/^23505|duplicate key/i.test(msg)) {
     return {
       titulo: 'Choque de clave única en la base',
@@ -248,6 +260,20 @@ export function diagnosticar(err: unknown): Diagnostico {
     queHacer: 'Mirar el detalle técnico de abajo y los logs del contenedor.',
     critico: false,
   };
+}
+
+/**
+ * Manda una novedad a los devs que NO es un error (ej: "se recuperó la base").
+ * Comparte destinatarios con alertar() para no tener dos listas que se
+ * desincronizan. Nunca lanza.
+ */
+export async function avisarDevs(texto: string): Promise<void> {
+  if (apagando) return;
+  for (const dev of DEVS) {
+    await sendText(dev.phone, texto).catch((e) =>
+      console.error('[alertas] no pude avisar a ' + dev.nombre + ':', (e as Error).message),
+    );
+  }
 }
 
 function ahoraUY(): string {

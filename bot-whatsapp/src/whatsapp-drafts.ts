@@ -103,7 +103,10 @@ async function sweepWhatsappDrafts(): Promise<void> {
     .select('phone, company_id, history, draft_invoice_id, pending')
     .not('pending->>archivo_url', 'is', null);
   if (error) {
+    // Este es el que fallo callado 25 horas el 4/8/2026: un `return` seco, sin
+    // avisar. Un error de la base no puede terminar solo en la consola.
     console.error('[wa-draft] error leyendo sesiones:', error);
+    void alertar('barrido de fotos sin confirmar (lectura de sesiones)', new Error(error.message));
     return;
   }
   const sessions = (data ?? []) as WaSession[];
@@ -202,6 +205,9 @@ async function guardarUnaAuto(
 
   if (error) {
     console.error('[wa-draft] error guardando automáticamente:', error);
+    void alertar('auto-guardado de una factura a las 24h', new Error(error.message), {
+      proveedor, monto: montoTxt, telefono: phone,
+    });
     return { estado: 'error', resumen: `${proveedor}, ${montoTxt}` };
   }
   console.log('[wa-draft] auto-guardado ' + data?.id + ' (' + proveedor + ') para ' + phone);

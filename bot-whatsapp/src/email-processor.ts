@@ -49,6 +49,20 @@ function cargarRemitentes(): Record<string, string> {
 
 const SENDERS: Record<string, string> = cargarRemitentes();
 
+// Remitentes cuyas facturas se guardan SIN preguntar categoría (no hay a quién preguntarle;
+// ej. casillas de administración de una empresa). Se usa la categoría sugerida por el LLM.
+const AUTO_SENDERS_FILE = path.join(process.env.CIERRE_DATA_DIR || '/app/data', 'remitentes_auto.json');
+function cargarAutoRemitentes(): Set<string> {
+  try {
+    const arr = JSON.parse(fs.readFileSync(AUTO_SENDERS_FILE, 'utf8')) as string[];
+    console.log('[email] ' + arr.length + ' remitentes auto (guardan sin preguntar) cargados');
+    return new Set(arr.map((x) => x.toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+const AUTO_SENDERS: Set<string> = cargarAutoRemitentes();
+
 /** Extrae el email del header From: "Nombre <mail@x.com>" → "mail@x.com" */
 function extractSenderEmail(from: string): string | null {
   const m = (from || '').match(/<([^>]+)>/) || (from || '').match(/([^\s<>]+@[^\s<>]+)/);
@@ -262,8 +276,18 @@ async function processMessage(messageId: string, categories: Category[]): Promis
       // No hay categoría → buscar el WhatsApp del remitente y preguntarle
       const senderEmail = extractSenderEmail(from);
       const phone = senderEmail ? SENDERS[senderEmail] : undefined;
+      const noAsk = senderEmail ? AUTO_SENDERS.has(senderEmail.toLowerCase()) : false;
 
-      if (phone) {
+      if (noAsk) {
+        const sug = invoiceData.categoria
+          ? categories.find((c) => c.nombre.toLowerCase() === String(invoiceData.categoria).toLowerCase())
+          : undefined;
+        await saveInvoice(invoiceData, company.id, from, archivePath, categories, {
+          categoriaName: sug ? sug.nombre : null,
+          flujo: { estado: 'auto_remitente', remitente: senderEmail, consulta_at: new Date().toISOString() },
+        });
+        console.log(`[email] 📥 remitente auto ${senderEmail} → guardada sin preguntar (categoría: ${sug ? sug.nombre : 'sin categoría'})`);
+      } else if (phone) {
         const flujo = {
           estado: 'esperando_info',
           consulta_phone: phone,

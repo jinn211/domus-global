@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import { config } from '../config.js';
+import { alertar } from './alertas.js';
 
 export const supabase = createClient(
   config.SUPABASE_URL,
@@ -205,7 +206,10 @@ export async function uploadFactura(
     .from('facturas')
     .upload(path, buffer, { contentType: mime ?? 'image/jpeg', upsert: false });
   if (error) {
+    // Sin esto, la factura se guarda sin comprobante y nadie se entera hasta el
+    // cierre, cuando falta el archivo en el ZIP.
     console.error('upload error:', error.message);
+    void alertar('subida del comprobante a Storage', new Error(error.message), { archivo: path });
     return null;
   }
   return path;

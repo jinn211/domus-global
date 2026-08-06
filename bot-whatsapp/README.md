@@ -30,12 +30,14 @@ Poller de Gmail cada 60s. Extrae los datos de la factura adjunta con Haiku, iden
 
 Poller cada 30 min. Al cerrar el período arma el paquete de cada empresa (CSV + comprobantes en ZIP) y lo entrega. Reintenta hasta 5 veces antes de darse por vencido; si el ZIP pasa los 20 MB lo sube a Storage y manda un link firmado.
 
-### 4. Vigilancia (`lib/alertas.ts` + `vigilante.ts`)
+### 4. Vigilancia (`lib/alertas.ts` + `lib/latido.ts` + `vigilante.ts`)
 
-Dos cosas distintas, a propósito:
+Tres cosas distintas, a propósito:
 
 - **`alertas.ts`** — avisa cuando algo **se rompe**. Cualquier módulo llama a `alertar(...)` y sigue de largo; el módulo traduce el error crudo a algo accionable ("Anthropic sin créditos: el bot no procesa nada hasta recargar") y lo manda por WhatsApp a los devs. Es **solo de salida**: importa `sendText` y nada más, así que no puede leer ni responder mensajes. Nunca lanza y nunca se llama a sí mismo (si lo caído es WhatsApp, sería un bucle).
   Solo avisa de lo que **persiste**. Un corte de red de dos segundos se arregla solo en el siguiente ciclo del poller; avisar de eso es ruido, y una alerta que suena por nada deja de mirarse. Los errores marcados `transitorio` (red, rate limit, sobrecarga) necesitan 3 fallas seguidas antes de sonar, y se callan durante los primeros 90s de vida del proceso y mientras se está apagando. Los críticos (sin créditos, key vencida) avisan siempre y al toque: eso no se cura esperando.
+
+- **`latido.ts`** — confirma cada 5 minutos que el bot **todavía puede hablar con la base**. Existe porque el resto del sistema solo detecta fallas cuando algo se ejecuta: si la base se cae y nadie escribe, no corre nada, no falla nada y no avisa nadie. El 4/8/2026 revocaron la key de Supabase y el bot estuvo 25 horas caído — recibió tres fotos, no contestó ninguna, no guardó ninguna, y no mandó una sola alerta. Es a propósito lo más tonto posible: una lectura chica y nada más, sin escribir. Un vigilante complicado es un vigilante que se rompe solo.
 
 - **`vigilante.ts`** — busca lo que quedó **mal sin romperse**: una fecha imposible, una factura sin categoría, un archivo que nunca se asoció a nada. Nada de eso lanza un error, así que sin este barrido nadie se entera. Corre cada 3 días, arregla lo que el OCR prueba y manda un resumen de lo que arregló y lo que hay que mirar a mano.
 
@@ -62,6 +64,7 @@ src/
     gmail.ts            cliente de Gmail
     cierre.ts           armado y envío del paquete de cierre
     alertas.ts          avisos de error a los devs (solo salida)
+    latido.ts           chequeo de conexión a la base cada 5 min
     lock.ts             lock por teléfono, compartido entre webhook y barridos
     interactions.ts     log de interacciones a disco
   tools/

@@ -11,6 +11,7 @@ import {
   type WaSession,
 } from './lib/supabase.js';
 import { CATEGORIAS_DESCRIPCION_OBLIGATORIA } from './tools/guardar.js';
+import { alertar } from './lib/alertas.js';
 
 const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
@@ -316,6 +317,9 @@ async function completarFactura(
 
   if (error) {
     console.error('[completar] error actualizando factura ' + invoiceId + ':', error);
+    void alertar('guardar la categoría de una factura de mail', new Error(error.message), {
+      factura: invoiceId,
+    });
     return 'Perdón, tuve un problema técnico y no pude guardar la categoría. ¿Podés reintentar en un momento?';
   }
 
