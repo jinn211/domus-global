@@ -78,26 +78,42 @@ export async function carpeta(nombre: string, padre?: string): Promise<string> {
 }
 
 /**
- * Nombres de los archivos que ya están en una carpeta.
+ * Lo que ya está en una carpeta: id y nombre de cada archivo.
  *
  * Es la base del anti-duplicados: en vez de llevar un registro local de lo que
  * se copió (que se pierde si se recrea el contenedor y termina duplicando todo),
- * se pregunta al destino. Si el archivo ya está, no se sube. Sin estado propio,
- * imposible desincronizarse.
+ * se le pregunta al destino. Sin estado propio, imposible desincronizarse.
  */
-export async function nombresEn(carpetaId: string): Promise<Set<string>> {
-  const nombres = new Set<string>();
+export async function archivosEn(carpetaId: string): Promise<{ id: string; name: string }[]> {
+  const out: { id: string; name: string }[] = [];
   let pageToken: string | undefined;
   do {
     const q = `'${carpetaId}' in parents and trashed = false`;
     const r = await api(
-      `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(name)&pageSize=1000` +
+      `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name)&pageSize=1000` +
         (pageToken ? `&pageToken=${pageToken}` : ''),
     );
-    for (const f of r.files ?? []) nombres.add(f.name);
+    for (const f of r.files ?? []) out.push({ id: f.id, name: f.name });
     pageToken = r.nextPageToken;
   } while (pageToken);
-  return nombres;
+  return out;
+}
+
+/**
+ * Renombra un archivo ya subido.
+ *
+ * Hace falta porque el nombre lleva datos de la factura (fecha, monto, si está
+ * confirmada) y esos datos cambian: el vigilante corrige una fecha, alguien
+ * confirma una factura que estaba inferida. Sin esto, Drive se quedaría con la
+ * foto del día que se copió y iría divergiendo de la base.
+ */
+export async function renombrar(fileId: string, nombre: string): Promise<void> {
+  const res = await fetch(`${API}/files/${fileId}?fields=id`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: nombre }),
+  });
+  if (!res.ok) throw new Error(`Drive renombrar → ${res.status} ${(await res.text()).slice(0, 200)}`);
 }
 
 export async function subir(

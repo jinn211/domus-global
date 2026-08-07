@@ -312,7 +312,8 @@ async function completarFactura(
 
   const { error } = await supabase
     .from('invoices')
-    .update({ categoria_id: cat.id, estado_conciliacion: 'pendiente', datos_extra: datosExtra })
+    // La persona contesto: pasa de inferida a confirmada.
+    .update({ categoria_id: cat.id, estado_conciliacion: 'pendiente', confirmacion: 'confirmada', datos_extra: datosExtra })
     .eq('id', invoiceId);
 
   if (error) {

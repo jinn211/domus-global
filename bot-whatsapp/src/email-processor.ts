@@ -576,6 +576,8 @@ async function uploadToStorage(
 interface SaveOpts {
   categoriaName?: string | null;
   flujo?: Record<string, unknown> | null;
+  /** 'confirmada' solo si una persona valido los datos. Por defecto, inferida. */
+  confirmacion?: 'confirmada' | 'inferida';
 }
 
 async function saveInvoice(
@@ -613,6 +615,7 @@ async function saveInvoice(
       reporter: from,
       archivo_url: archivePath,
       estado_conciliacion: 'pendiente',
+      confirmacion: opts.confirmacion ?? 'inferida',
       hash_dedupe: hash,
       datos_extra,
     })

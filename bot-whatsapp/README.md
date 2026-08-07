@@ -49,14 +49,28 @@ Reglas del vigilante, deliberadas: **nunca toca `monto` ni `moneda`** (un númer
 
 Copia diaria de los comprobantes a Google Drive. Supabase Storage es el original; esto es la segunda copia.
 
-Dos decisiones que valen la pena entender:
+El destino no es un depósito: es donde alguien de contabilidad va a buscar un comprobante contra una línea del banco. De ahí las decisiones:
 
+- **Carpeta por empresa y mes.** Cerrar un mes es abrir una carpeta, no juntar pedazos de varias.
+- **El nombre dice todo lo que se busca.** En Storage los archivos se llaman `0914ef5e-049a-...jpg`, que como respaldo no sirve de nada. Acá quedan como `2026-08-04 · TIH S.A. · USD 44,17 · A-1234 · Julio Fitipaldo · 900eba99.pdf`: fecha primero para que ordene solo, después lo que se cruza contra el banco (proveedor, monto, número de factura) y quién lo subió.
+- **Lo que nadie miró se marca.** Una factura que quedó cargada con lo que dedujo el modelo lleva `SIN CONFIRMAR` en el nombre. Contabilidad distingue de un vistazo lo verificado de lo inferido, sin abrir nada.
 - **No lleva registro local de lo copiado.** En cada corrida le pregunta a Drive qué hay y sube solo lo que falta. Un archivo de control se pierde al recrear el contenedor y entonces duplica todo; el destino nunca miente.
-- **Renombra los archivos.** En Storage se llaman `0914ef5e-049a-...jpg`, que como respaldo no sirve de nada: son archivos que nadie sabe qué son. En Drive quedan como `NUBLIT SA/2026-08/2026-08-04 · La Perdiz · UYU 1.234,00 · 0914ef5e.jpg`. El pedacito de UUID al final no es decorativo: garantiza que dos gastos iguales del mismo día no colisionen, y es lo que hace estable la comparación con lo que ya está.
+- **Compara por el UUID corto, no por el nombre entero.** El nombre cambia cuando cambian los datos (el vigilante corrige una fecha, alguien confirma una factura); si se comparara entero, cada corrección subiría el archivo de nuevo. Cuando el nombre quedó viejo, lo renombra en Drive en vez de duplicarlo.
 
-Los archivos sin factura asociada (gastos que nadie rindió) van a `_sin registrar`, para que no se pierdan mientras se decide qué hacer con ellos.
+Los archivos sin factura asociada (gastos que nadie rindió) van a `_sin registrar`, para que no se pierdan mientras se decide qué hacer.
 
-Usa un cliente OAuth propio, separado del de Gmail: revocar uno no tumba el otro. El permiso es `drive.file`, el mínimo posible — solo ve los archivos que él mismo crea, no el resto del Drive.
+Usa un cliente OAuth propio, separado del de Gmail: revocar uno no tumba el otro. El permiso es `drive.file`, el mínimo posible — solo ve los archivos que él mismo crea.
+
+### Confirmada vs inferida
+
+La columna `invoices.confirmacion` distingue lo que una persona validó de lo que quedó con lo que dedujo el modelo. Para contabilidad la diferencia importa: lo segundo hay que revisarlo antes de conciliar.
+
+| valor | cuándo |
+|---|---|
+| `confirmada` | el empleado confirmó los datos en la conversación, o respondió la categoría de una factura que llegó por mail |
+| `inferida` | venció el plazo sin respuesta y se guardó sola, o llegó de un remitente automático a quien no hay a quién preguntarle |
+
+El default de la columna es `inferida` a propósito: si el código se olvida de marcarla, queda del lado prudente, no del lado que aparenta estar verificado.
 
 ## Estructura
 

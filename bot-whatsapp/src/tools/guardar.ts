@@ -167,6 +167,8 @@ export async function guardarFactura(ctx: GuardarCtx, input: GuardarInput): Prom
       reporter: ctx.phone,
       archivo_url: ctx.archivoUrl,
       estado_conciliacion: 'pendiente',
+      // El agente solo llega aca despues de que la persona confirmo los datos.
+      confirmacion: 'confirmada',
       hash_dedupe: hash,
       datos_extra: { ocr: ctx.ocrText, descripcion: input.descripcion ?? null },
     })

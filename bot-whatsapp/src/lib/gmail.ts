@@ -7,6 +7,7 @@ export interface GmailPart {
   filename: string;
   body: { size: number; data?: string; attachmentId?: string };
   parts?: GmailPart[];
+  headers?: { name: string; value: string }[];
 }
 
 export interface GmailFullMessage {
@@ -105,14 +106,36 @@ export class GmailClient {
     await this.post(`/messages/${id}/modify`, { removeLabelIds: ['UNREAD'] });
   }
 
-  /** Devuelve los parts que son adjuntos reales (PDF, XML, imágenes). */
+  /**
+   * Devuelve los parts que son adjuntos reales (PDF, XML, imagenes).
+   *
+   * Descarta las imagenes incrustadas en el cuerpo del mail. Los logos de firma
+   * ("nublit by DOMUS GLOBAL", la tarjeta de contacto de alguien) viajan como
+   * parts de imagen igual que un ticket, y entraban como si fueran facturas:
+   * quedaban cargadas con monto 0, sin fecha y sin proveedor, ensuciando la base
+   * y el respaldo. Se reconocen porque el HTML del mail las referencia con
+   * `cid:`, asi que traen Content-ID y Content-Disposition: inline.
+   *
+   * Los PDF y XML nunca se descartan por esto: un adjunto de esos siempre es
+   * intencional, aunque el cliente de correo lo marque inline.
+   */
   getAttachmentParts(msg: GmailFullMessage): GmailPart[] {
     const all = msg.payload.parts ? msg.payload.parts.flatMap(flatParts) : [];
     return all.filter((p) => {
       if (!p.body.attachmentId) return false;
       const mime = p.mimeType.toLowerCase();
       const fname = (p.filename ?? '').toLowerCase();
-      // Aceptar cualquier imagen, PDF, XML o binario generico (incluso inline)
+
+      if (mime.includes('image/')) {
+        const h = (n: string) =>
+          (p.headers ?? []).find((x) => x.name.toLowerCase() === n)?.value ?? '';
+        if (h('content-id')) return false;
+        if (h('content-disposition').toLowerCase().includes('inline')) return false;
+        // Red de seguridad: ningun ticket legible pesa menos que esto, y los
+        // logos de firma andan en los 5-40 KB.
+        if ((p.body.size ?? 0) < 45_000) return false;
+      }
+
       return (
         mime.includes('image/') ||
         mime.includes('pdf') ||

@@ -193,6 +193,8 @@ async function guardarUnaAuto(
       reporter: phone,
       archivo_url: archivoUrl,
       estado_conciliacion: 'pendiente',
+      // Vencio el plazo sin respuesta: quedo con lo que leyo el modelo.
+      confirmacion: 'inferida',
       hash_dedupe: hash,
       datos_extra: {
         ocr: ocrText,

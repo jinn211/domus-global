@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
 import { supabase } from './lib/supabase.js';
-import { carpeta, nombresEn, subir } from './lib/drive.js';
+import { carpeta, archivosEn, renombrar, subir } from './lib/drive.js';
 import { alertar, avisarDevs } from './lib/alertas.js';
 
 /**
@@ -11,23 +11,28 @@ import { alertar, avisarDevs } from './lib/alertas.js';
  * Supabase Storage es el original; esto es la segunda copia. Si mañana se pierde
  * el proyecto de Supabase, los comprobantes de las empresas siguen existiendo.
  *
- * Dos decisiones que valen la pena entender:
+ * El destino no es un depósito: es donde alguien de contabilidad va a buscar un
+ * comprobante contra una línea del banco. De ahí las tres decisiones de abajo.
  *
- * 1. NO lleva registro local de lo copiado. En cada corrida pregunta a Drive qué
- *    hay y sube solo lo que falta. Un archivo de control se pierde al recrear el
- *    contenedor y entonces duplica todo; el destino nunca miente.
+ * 1. CARPETAS POR EMPRESA Y MES. Cerrar un mes es abrir una carpeta, no juntar
+ *    pedazos de varias.
  *
- * 2. RENOMBRA los archivos. En Storage se llaman `0914ef5e-049a-...jpg`, que
- *    como respaldo no sirve de nada: 92 archivos que nadie sabe qué son. Acá
- *    quedan como `2026-08-04 · La Perdiz · UYU 1.234,00 · 0914ef5e.jpg`. El
- *    pedacito de UUID al final no es decorativo: garantiza que dos gastos
- *    iguales del mismo día no colisionen, y es lo que hace estable la
- *    comparación con lo que ya está en Drive.
+ * 2. EL NOMBRE DICE TODO LO QUE SE BUSCA. En Storage los archivos se llaman
+ *    `0914ef5e-049a-...jpg`, que como respaldo no sirve de nada. Acá quedan:
+ *
+ *      2026-08-04 · TIH S.A. · USD 44,17 · A-1234 · Julio Fitipaldo · 900eba99.pdf
+ *
+ *    Fecha primero para que ordene solo. Después lo que se cruza contra el
+ *    banco: proveedor, monto, número de factura. Y quién la subió.
+ *
+ * 3. LAS QUE NADIE MIRÓ SE MARCAN. Una factura que quedó cargada con lo que
+ *    dedujo el modelo lleva `SIN CONFIRMAR` en el nombre. Contabilidad tiene que
+ *    poder distinguir de un vistazo lo verificado de lo inferido, sin abrir nada.
  */
 
 const RAIZ = 'Facturas Domus';
 const HUERFANOS = '_sin registrar';
-const CADA_MS = 6 * 3600_000; // revisa 4 veces al día si ya toca
+const CADA_MS = 6 * 3600_000;
 const DATA_DIR = process.env.CIERRE_DATA_DIR || '/app/data';
 const ESTADO = path.join(DATA_DIR, 'respaldo.json');
 
@@ -36,45 +41,59 @@ const leer = (): Estado => { try { return JSON.parse(fs.readFileSync(ESTADO, 'ut
 const guardar = (e: Estado) => { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(ESTADO, JSON.stringify(e, null, 2)); };
 
 /** Drive no acepta `/` en los nombres; el resto lo dejamos legible. */
-const limpiar = (s: string) => s.replace(/[/\\]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120);
+const limpiar = (s: string) => s.replace(/[/\\]/g, '-').replace(/\s+/g, ' ').trim();
 
 const plata = (m: unknown, mon: unknown) =>
   `${mon ?? 'UYU'} ${Number(m ?? 0).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`;
 
-interface Copiado { subidos: number; yaEstaban: number; fallados: string[]; huerfanos: number }
+/**
+ * De dónde salió la factura, en criollo.
+ * Por WhatsApp `reporter` es el teléfono (se cruza con employees); por mail es
+ * el From entero ("Julio Fitipaldo <julio@...>"), del que sacamos el nombre.
+ */
+function quienLaSubio(reporter: string | null, porTelefono: Map<string, string>): string {
+  if (!reporter) return 'sin remitente';
+  const porNombre = porTelefono.get(reporter);
+  if (porNombre) return porNombre;
+  const m = reporter.match(/^\s*"?([^"<]+?)"?\s*</);
+  if (m) return m[1].trim();
+  return reporter.replace(/[<>]/g, '').trim();
+}
+
+interface Copiado { subidos: number; yaEstaban: number; renombrados: number; fallados: string[]; huerfanos: number }
 
 export async function respaldar(): Promise<Copiado> {
   // 1. Todo lo que hay en Storage
-  const objetos: { name: string; size: number }[] = [];
+  const objetos: string[] = [];
   const { data: raices } = await supabase.storage.from('facturas').list('', { limit: 1000 });
   for (const co of (raices ?? []).filter((x) => !x.id)) {
     for (const anio of ['2025', '2026', '2027']) {
       const { data: meses } = await supabase.storage.from('facturas').list(`${co.name}/${anio}`, { limit: 1000 });
       for (const m of (meses ?? []).filter((x) => !x.id)) {
         const { data: archivos } = await supabase.storage.from('facturas').list(`${co.name}/${anio}/${m.name}`, { limit: 1000 });
-        for (const a of (archivos ?? []).filter((x) => x.id)) {
-          objetos.push({ name: `${co.name}/${anio}/${m.name}/${a.name}`, size: (a.metadata as any)?.size ?? 0 });
-        }
+        for (const a of (archivos ?? []).filter((x) => x.id)) objetos.push(`${co.name}/${anio}/${m.name}/${a.name}`);
       }
     }
   }
 
-  // 2. Metadata de las facturas, para poder ponerles un nombre que sirva
+  // 2. Metadata, para poder ponerles un nombre que sirva
   const { data: facturas, error } = await supabase
     .from('invoices')
-    .select('archivo_url,empresa_emisora,monto,moneda,fecha,created_at,company_id,companies(nombre)')
+    .select('archivo_url,empresa_emisora,monto,moneda,fecha,nro_factura,created_at,reporter,confirmacion,companies(nombre)')
     .not('archivo_url', 'is', null);
   if (error) throw new Error('no pude leer las facturas: ' + error.message);
 
+  const { data: empleados } = await supabase.from('employees').select('phone,nombre');
+  const porTelefono = new Map((empleados ?? []).map((e: any) => [e.phone, e.nombre]));
   const porArchivo = new Map<string, any>();
   for (const f of facturas ?? []) porArchivo.set(f.archivo_url as string, f);
 
-  // 3. Carpeta raíz en Drive, y caché de subcarpetas para no pedirlas de más
+  // 3. Carpetas en Drive, con caché para no pedir lo mismo N veces
   const raizId = await carpeta(RAIZ);
   const cacheCarpeta = new Map<string, string>();
-  const cacheNombres = new Map<string, Set<string>>();
+  const cacheContenido = new Map<string, { id: string; name: string }[]>();
 
-  async function destino(ruta: string[]): Promise<{ id: string; existentes: Set<string> }> {
+  async function destino(ruta: string[]) {
     const clave = ruta.join('/');
     let id = cacheCarpeta.get(clave);
     if (!id) {
@@ -85,44 +104,68 @@ export async function respaldar(): Promise<Copiado> {
         if (!hijo) { hijo = await carpeta(ruta[i], id); cacheCarpeta.set(sub, hijo); }
         id = hijo;
       }
+      cacheCarpeta.set(clave, id);
     }
-    let existentes = cacheNombres.get(clave);
-    if (!existentes) { existentes = await nombresEn(id); cacheNombres.set(clave, existentes); }
-    return { id, existentes };
+    let contenido = cacheContenido.get(clave);
+    if (!contenido) { contenido = await archivosEn(id); cacheContenido.set(clave, contenido); }
+    return { id, contenido };
   }
 
-  const r: Copiado = { subidos: 0, yaEstaban: 0, fallados: [], huerfanos: 0 };
+  const r: Copiado = { subidos: 0, yaEstaban: 0, renombrados: 0, fallados: [], huerfanos: 0 };
 
   for (const obj of objetos) {
-    const f = porArchivo.get(obj.name);
-    const corto = obj.name.split('/').pop()!.slice(0, 8);
-    const ext = obj.name.slice(obj.name.lastIndexOf('.')) || '.bin';
+    const f = porArchivo.get(obj);
+    const uuid = obj.split('/').pop()!.slice(0, 8);
+    const ext = obj.slice(obj.lastIndexOf('.')) || '.bin';
 
     // Un archivo sin factura asociada es un gasto que nadie rindió. Se respalda
     // igual, aparte, para que no se pierda mientras se decide qué hacer.
     const ruta = f
       ? [limpiar((f.companies as any)?.nombre ?? 'Sin empresa'), String(f.fecha ?? f.created_at).slice(0, 7)]
       : [HUERFANOS];
+
     const nombre = f
-      ? limpiar(`${String(f.fecha ?? f.created_at).slice(0, 10)} · ${f.empresa_emisora ?? 'sin proveedor'} · ${plata(f.monto, f.moneda)} · ${corto}`) + ext
-      : limpiar(obj.name.replace(/\//g, '_'));
+      ? limpiar([
+          String(f.fecha ?? f.created_at).slice(0, 10),
+          f.empresa_emisora || 'sin proveedor',
+          plata(f.monto, f.moneda),
+          f.nro_factura || null,
+          quienLaSubio(f.reporter, porTelefono),
+          f.confirmacion === 'confirmada' ? null : 'SIN CONFIRMAR',
+          uuid,
+        ].filter(Boolean).join(' · ')).slice(0, 200) + ext
+      : limpiar(obj.replace(/\//g, '_'));
+
     if (!f) r.huerfanos++;
 
     try {
-      const { id, existentes } = await destino(ruta);
-      if (existentes.has(nombre)) { r.yaEstaban++; continue; }
+      const { id, contenido } = await destino(ruta);
 
-      const { data: blob, error: e1 } = await supabase.storage.from('facturas').download(obj.name);
+      // Anti-duplicados por el UUID, no por el nombre entero: el nombre cambia
+      // cuando cambian los datos (el vigilante corrige una fecha, alguien
+      // confirma la factura) y compararlo entero volvería a subirla.
+      const ya = contenido.find((x) => x.name.includes(uuid));
+      if (ya) {
+        if (ya.name !== nombre) {
+          await renombrar(ya.id, nombre);
+          ya.name = nombre;
+          r.renombrados++;
+        } else {
+          r.yaEstaban++;
+        }
+        continue;
+      }
+
+      const { data: blob, error: e1 } = await supabase.storage.from('facturas').download(obj);
       if (e1 || !blob) throw new Error('no pude bajarlo de Storage: ' + (e1?.message ?? 'vacío'));
 
-      const buf = Buffer.from(await blob.arrayBuffer());
-      await subir(nombre, id, buf, blob.type || 'application/octet-stream');
-      existentes.add(nombre); // por si el mismo nombre sale dos veces en la corrida
+      await subir(nombre, id, Buffer.from(await blob.arrayBuffer()), blob.type || 'application/octet-stream');
+      contenido.push({ id: '', name: nombre });
       r.subidos++;
     } catch (e) {
-      r.fallados.push(`${obj.name}: ${(e as Error).message}`);
-      // Si Drive rechaza el token, va a fallar con todos: cortamos acá en vez de
-      // machacar la API 92 veces con el mismo error.
+      r.fallados.push(`${obj}: ${(e as Error).message}`);
+      // Si Drive rechaza el token va a fallar con todos: cortamos acá en vez de
+      // machacar la API una vez por archivo con el mismo error.
       if (/OAuth|invalid_grant|401|403/i.test((e as Error).message)) break;
     }
   }
@@ -134,9 +177,9 @@ async function correrYAvisar(): Promise<void> {
   try {
     const r = await respaldar();
     guardar({ ultima: new Date().toISOString() });
-    console.log(`[respaldo] ${r.subidos} nuevos, ${r.yaEstaban} ya estaban, ${r.fallados.length} fallaron`);
+    console.log(`[respaldo] ${r.subidos} nuevos, ${r.renombrados} renombrados, ${r.yaEstaban} sin cambios, ${r.fallados.length} fallaron`);
 
-    // Solo molesta cuando hay algo que contar: si copió de más o si algo falló.
+    // Solo molesta cuando hay algo que contar.
     if (r.fallados.length) {
       const lineas = [
         `⚠️ *Respaldo a Drive* — ${r.subidos} copiados, *${r.fallados.length} fallaron*`,
@@ -147,9 +190,9 @@ async function correrYAvisar(): Promise<void> {
       await avisarDevs(lineas.join('\n'));
     } else if (r.subidos > 0) {
       await avisarDevs(
-        `✅ *Respaldo a Drive* — ${r.subidos} comprobante(s) nuevo(s) copiados.\n` +
-          `Total resguardado: ${r.subidos + r.yaEstaban}.` +
-          (r.huerfanos ? `\n\n⚠️ ${r.huerfanos} sin factura asociada, quedaron en "${HUERFANOS}".` : ''),
+        `✅ *Respaldo a Drive* — ${r.subidos} comprobante(s) nuevo(s).\n` +
+          `Total resguardado: ${r.subidos + r.yaEstaban + r.renombrados}.` +
+          (r.huerfanos ? `\n\n⚠️ ${r.huerfanos} sin factura asociada, en "${HUERFANOS}".` : ''),
       );
     }
   } catch (e) {
@@ -169,6 +212,6 @@ export function initRespaldo(): void {
     const horas = u ? (Date.now() - new Date(u).getTime()) / 3600_000 : Infinity;
     if (horas >= 24) await correrYAvisar();
   };
-  setTimeout(() => void tick(), 3 * 60_000); // a los 3 min de arrancar, sin trabar el boot
+  setTimeout(() => void tick(), 3 * 60_000);
   setInterval(() => void tick(), CADA_MS);
 }
