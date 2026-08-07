@@ -57,7 +57,7 @@ El destino no es un depósito: es donde alguien de contabilidad va a buscar un c
 - **No lleva registro local de lo copiado.** En cada corrida le pregunta a Drive qué hay y sube solo lo que falta. Un archivo de control se pierde al recrear el contenedor y entonces duplica todo; el destino nunca miente.
 - **Compara por el UUID corto, no por el nombre entero.** El nombre cambia cuando cambian los datos (el vigilante corrige una fecha, alguien confirma una factura); si se comparara entero, cada corrección subiría el archivo de nuevo. Cuando el nombre quedó viejo, lo renombra en Drive en vez de duplicarlo.
 
-Los archivos sin factura asociada (gastos que nadie rindió) van a `_sin registrar`, para que no se pierdan mientras se decide qué hacer.
+**Solo viaja lo que está registrado.** Drive espeja la tabla de facturas, no el bucket. Un archivo suelto en Storage casi siempre es una foto repetida — alguien mandó el mismo ticket tres veces porque no le contestaban — y meterlo en la carpeta del contador es ruido: parece un gasto que falta, y no lo es. Los sueltos siguen guardados en Storage, que es el original, y el vigilante los reporta cada 3 días para que una persona decida.
 
 Usa un cliente OAuth propio, separado del de Gmail: revocar uno no tumba el otro. El permiso es `drive.file`, el mínimo posible — solo ve los archivos que él mismo crea.
 

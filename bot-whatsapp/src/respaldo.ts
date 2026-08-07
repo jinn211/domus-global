@@ -28,10 +28,16 @@ import { alertar, avisarDevs } from './lib/alertas.js';
  * 3. LAS QUE NADIE MIRÓ SE MARCAN. Una factura que quedó cargada con lo que
  *    dedujo el modelo lleva `SIN CONFIRMAR` en el nombre. Contabilidad tiene que
  *    poder distinguir de un vistazo lo verificado de lo inferido, sin abrir nada.
+ *
+ * 4. SOLO VIAJA LO QUE ESTÁ REGISTRADO. Drive espeja la tabla de facturas, no el
+ *    bucket. Un archivo suelto en Storage casi siempre es una foto repetida —
+ *    alguien mandó el mismo ticket tres veces porque no le contestaban — y meter
+ *    eso en la carpeta del contador es ruido: parece un gasto que falta y no lo
+ *    es. Los archivos sueltos siguen guardados en Storage, que es el original, y
+ *    el vigilante los reporta cada 3 días para que una persona decida.
  */
 
 const RAIZ = 'Facturas Domus';
-const HUERFANOS = '_sin registrar';
 const CADA_MS = 6 * 3600_000;
 const DATA_DIR = process.env.CIERRE_DATA_DIR || '/app/data';
 const ESTADO = path.join(DATA_DIR, 'respaldo.json');
@@ -60,7 +66,7 @@ function quienLaSubio(reporter: string | null, porTelefono: Map<string, string>)
   return reporter.replace(/[<>]/g, '').trim();
 }
 
-interface Copiado { subidos: number; yaEstaban: number; renombrados: number; fallados: string[]; huerfanos: number }
+interface Copiado { subidos: number; yaEstaban: number; renombrados: number; fallados: string[]; sueltos: number }
 
 export async function respaldar(): Promise<Copiado> {
   // 1. Todo lo que hay en Storage
@@ -111,21 +117,19 @@ export async function respaldar(): Promise<Copiado> {
     return { id, contenido };
   }
 
-  const r: Copiado = { subidos: 0, yaEstaban: 0, renombrados: 0, fallados: [], huerfanos: 0 };
+  const r: Copiado = { subidos: 0, yaEstaban: 0, renombrados: 0, fallados: [], sueltos: 0 };
 
   for (const obj of objetos) {
     const f = porArchivo.get(obj);
+
+    // Sin factura asociada no viaja: ver la decisión 4 del comentario de arriba.
+    if (!f) { r.sueltos++; continue; }
+
     const uuid = obj.split('/').pop()!.slice(0, 8);
     const ext = obj.slice(obj.lastIndexOf('.')) || '.bin';
+    const ruta = [limpiar((f.companies as any)?.nombre ?? 'Sin empresa'), String(f.fecha ?? f.created_at).slice(0, 7)];
 
-    // Un archivo sin factura asociada es un gasto que nadie rindió. Se respalda
-    // igual, aparte, para que no se pierda mientras se decide qué hacer.
-    const ruta = f
-      ? [limpiar((f.companies as any)?.nombre ?? 'Sin empresa'), String(f.fecha ?? f.created_at).slice(0, 7)]
-      : [HUERFANOS];
-
-    const nombre = f
-      ? limpiar([
+    const nombre = limpiar([
           String(f.fecha ?? f.created_at).slice(0, 10),
           f.empresa_emisora || 'sin proveedor',
           plata(f.monto, f.moneda),
@@ -133,10 +137,7 @@ export async function respaldar(): Promise<Copiado> {
           quienLaSubio(f.reporter, porTelefono),
           f.confirmacion === 'confirmada' ? null : 'SIN CONFIRMAR',
           uuid,
-        ].filter(Boolean).join(' · ')).slice(0, 200) + ext
-      : limpiar(obj.replace(/\//g, '_'));
-
-    if (!f) r.huerfanos++;
+        ].filter(Boolean).join(' · ')).slice(0, 200) + ext;
 
     try {
       const { id, contenido } = await destino(ruta);
@@ -177,7 +178,7 @@ async function correrYAvisar(): Promise<void> {
   try {
     const r = await respaldar();
     guardar({ ultima: new Date().toISOString() });
-    console.log(`[respaldo] ${r.subidos} nuevos, ${r.renombrados} renombrados, ${r.yaEstaban} sin cambios, ${r.fallados.length} fallaron`);
+    console.log(`[respaldo] ${r.subidos} nuevos, ${r.renombrados} renombrados, ${r.yaEstaban} sin cambios, ${r.sueltos} sueltos sin copiar, ${r.fallados.length} fallaron`);
 
     // Solo molesta cuando hay algo que contar.
     if (r.fallados.length) {
@@ -192,7 +193,7 @@ async function correrYAvisar(): Promise<void> {
       await avisarDevs(
         `✅ *Respaldo a Drive* — ${r.subidos} comprobante(s) nuevo(s).\n` +
           `Total resguardado: ${r.subidos + r.yaEstaban + r.renombrados}.` +
-          (r.huerfanos ? `\n\n⚠️ ${r.huerfanos} sin factura asociada, en "${HUERFANOS}".` : ''),
+          (r.sueltos ? `\n\n_(${r.sueltos} archivo(s) sueltos en Storage sin factura asociada: no se copian. El vigilante los reporta.)_` : ''),
       );
     }
   } catch (e) {

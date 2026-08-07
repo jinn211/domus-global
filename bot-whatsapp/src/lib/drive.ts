@@ -140,3 +140,18 @@ export async function subir(
   });
   if (!res.ok) throw new Error(`Drive subir "${nombre}" → ${res.status} ${(await res.text()).slice(0, 200)}`);
 }
+
+/**
+ * Manda un archivo o carpeta a la papelera de Drive.
+ *
+ * A la papelera y no borrado definitivo a propósito: Drive la conserva 30 días,
+ * así que un error se deshace desde la interfaz sin depender de nosotros.
+ */
+export async function aPapelera(fileId: string): Promise<void> {
+  const res = await fetch(`${API}/files/${fileId}?fields=id`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  });
+  if (!res.ok) throw new Error(`Drive papelera → ${res.status} ${(await res.text()).slice(0, 200)}`);
+}
