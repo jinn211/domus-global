@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprobantes · Domus Global</title>
+<style>
+/* ───────────────────────────────────────────────────────────────────────────
+   Esto no es un dashboard: es un archivador.
+
+   Quién lo usa: Joanna y Eduardo, con el extracto del banco al lado, buscando
+   UN comprobante puntual — porque hay una línea que nadie reconoce, o el
+   contador pidió un respaldo. No vienen a analizar tendencias.
+
+   Qué tiene que sentirse: un archivador de verdad. Ordenado, callado, confiable.
+   De ahí las pestañas de color en las carpetas (como las de un bibliorato), el
+   crema apenas perceptible de las filas de comprobante (papel, no pantalla) y
+   la marca de lápiz rojo en lo que nadie revisó — que es lo que un contador
+   hace a mano cuando algo no le cierra.
+
+   Base Apple light por convención del proyecto: #f5f5f7, #0071e3, -apple-system.
+   El carácter de archivo entra por estructura y detalle, no peleando la paleta.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root{
+  --lienzo:#f5f5f7;
+  --papel:#fff;
+  --papel-archivo:#fdfcf9;      /* crema mínimo: la fila de comprobante es papel */
+  --tinta:#1d1d1f;
+  --tinta-2:#545456;
+  --tinta-3:#86868b;
+  --tinta-4:#aeaeb2;
+  --filo:rgba(0,0,0,.07);
+  --filo-suave:rgba(0,0,0,.04);
+  --filo-fuerte:rgba(0,0,0,.14);
+  --acento:#0071e3;
+  --acento-suave:rgba(0,113,227,.08);
+  --lapiz-rojo:#c0362c;         /* lo que un contador circula a mano */
+  --lapiz-rojo-suave:rgba(192,54,44,.09);
+  --r-chico:6px; --r:10px; --r-grande:14px;
+  --u:4px;                       /* unidad base, todo es múltiplo */
+  --sombra:0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
+  --sombra-alta:0 4px 16px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+  background:var(--lienzo); color:var(--tinta);
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;border:0;background:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+
+/* ── Ingreso ─────────────────────────────────────────────────────────────── */
+#ingreso{min-height:100vh;display:grid;place-items:center;padding:24px}
+.tarjeta-ingreso{
+  width:100%;max-width:380px;background:var(--papel);border:1px solid var(--filo);
+  border-radius:var(--r-grande);padding:32px;box-shadow:var(--sombra-alta);
+}
+.tarjeta-ingreso h1{font-size:19px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
+.tarjeta-ingreso p{font-size:13.5px;color:var(--tinta-3);margin-bottom:24px}
+.campo{
+  width:100%;padding:10px 12px;background:#fafafa;
+  border:1px solid var(--filo-fuerte);border-radius:var(--r-chico);
+  transition:border-color .15s,box-shadow .15s;
+}
+.campo:focus{outline:0;border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave)}
+.campo+.campo,.campo+.boton{margin-top:10px}
+.boton{
+  width:100%;padding:10px;background:var(--acento);color:#fff;font-weight:500;
+  border-radius:var(--r-chico);transition:opacity .15s,transform .06s;
+}
+.boton:hover{opacity:.9} .boton:active{transform:scale(.99)}
+.boton[disabled]{opacity:.4;cursor:default}
+.aviso{margin-top:14px;font-size:13px;line-height:1.5;color:var(--tinta-3)}
+.aviso.mal{color:var(--lapiz-rojo)}
+
+/* ── Cabecera ────────────────────────────────────────────────────────────── */
+#app{display:none}
+header{
+  position:sticky;top:0;z-index:20;background:rgba(245,245,247,.86);
+  backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--filo);
+}
+.barra{max-width:1180px;margin:0 auto;padding:0 24px;height:52px;display:flex;align-items:center;gap:16px}
+.marca{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.marca span{color:var(--tinta-3);font-weight:400}
+.quien{margin-left:auto;font-size:12.5px;color:var(--tinta-3);display:flex;align-items:center;gap:10px}
+.salir{font-size:12.5px;color:var(--acento)} .salir:hover{text-decoration:underline}
+
+/* ── Migas de pan ────────────────────────────────────────────────────────── */
+.migas{max-width:1180px;margin:0 auto;padding:20px 24px 0;display:flex;align-items:center;gap:6px;font-size:13px;flex-wrap:wrap}
+.migas button{color:var(--acento)} .migas button:hover{text-decoration:underline}
+.migas .sep{color:var(--tinta-4)}
+.migas .actual{color:var(--tinta-2);font-weight:500}
+
+/* ── Filtros ─────────────────────────────────────────────────────────────── */
+.filtros{
+  max-width:1180px;margin:14px auto 0;padding:0 24px;
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+}
+.filtros .campo{width:auto;padding:7px 11px;font-size:13.5px;background:var(--papel)}
+#q{flex:1;min-width:240px}
+/* El input de fecha nativo no dice cuál es cuál, y su formato lo decide el
+   navegador. La etiqueta al lado saca la ambigüedad sin reescribir el control. */
+.rango{
+  display:flex;align-items:center;gap:6px;padding:0 4px 0 10px;background:var(--papel);
+  border:1px solid var(--filo-fuerte);border-radius:var(--r-chico);
+}
+.rango:focus-within{border-color:var(--acento);box-shadow:0 0 0 3px var(--acento-suave)}
+.rango label{font-size:12.5px;color:var(--tinta-3);flex:none}
+.rango .campo{border:0;background:0;padding:7px 4px;min-width:118px}
+.rango .campo:focus{outline:0;box-shadow:none}
+.chip{
+  padding:7px 12px;font-size:13px;background:var(--papel);border:1px solid var(--filo-fuerte);
+  border-radius:999px;color:var(--tinta-2);transition:all .15s;white-space:nowrap;
+}
+.chip:hover{border-color:var(--tinta-4)}
+.chip.on{background:var(--lapiz-rojo-suave);border-color:rgba(192,54,44,.3);color:var(--lapiz-rojo);font-weight:500}
+.limpiar{font-size:13px;color:var(--tinta-3)} .limpiar:hover{color:var(--tinta)}
+
+/* ── Resumen de lo que se está viendo ────────────────────────────────────── */
+.resumen{
+  max-width:1180px;margin:16px auto 0;padding:0 24px;
+  display:flex;gap:22px;align-items:baseline;flex-wrap:wrap;
+  font-size:13px;color:var(--tinta-3);
+}
+.resumen b{color:var(--tinta);font-weight:600}
+.resumen .plata{font-size:13.5px}
+
+/* ── Lista ───────────────────────────────────────────────────────────────── */
+main{max-width:1180px;margin:0 auto;padding:16px 24px 80px}
+.lista{background:var(--papel);border:1px solid var(--filo);border-radius:var(--r);overflow:hidden;box-shadow:var(--sombra)}
+.fila{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  padding:11px 16px;border-bottom:1px solid var(--filo-suave);
+  transition:background .12s;position:relative;
+}
+.fila:last-child{border-bottom:0}
+.fila:hover{background:#fafafa}
+.fila:focus-visible{outline:2px solid var(--acento);outline-offset:-2px}
+
+/* La pestaña: como la lengüeta de color de un bibliorato. Solo en carpetas. */
+.fila.carpeta::before{
+  content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
+  border-radius:0 2px 2px 0;background:var(--pestana,var(--tinta-4));
+}
+.fila.carpeta{padding-left:22px}
+.icono{width:19px;flex:none;color:var(--tinta-4);display:grid;place-items:center}
+.nombre{font-weight:500;letter-spacing:-.01em}
+.sub{font-size:12.5px;color:var(--tinta-3);margin-top:1px}
+.crece{flex:1;min-width:0}
+.crece .nombre,.crece .sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cuenta{font-size:12.5px;color:var(--tinta-3);flex:none}
+.chevron{color:var(--tinta-4);flex:none}
+
+/* ── Fila de comprobante ─────────────────────────────────────────────────── */
+.fila.doc{background:var(--papel-archivo)}
+.fila.doc:hover{background:#faf8f2}
+.fecha{width:52px;flex:none;font-size:12.5px;color:var(--tinta-3)}
+.emisor{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.nro{width:118px;flex:none;font-size:12px;color:var(--tinta-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quien-col{width:126px;flex:none;font-size:12.5px;color:var(--tinta-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat{width:132px;flex:none;font-size:12px;color:var(--tinta-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.importe{width:132px;flex:none;text-align:right;font-size:13.5px;font-weight:500}
+.importe .mon{color:var(--tinta-3);font-weight:400;font-size:11.5px;margin-right:3px}
+
+/* Marca de lápiz rojo: lo que nadie confirmó. No es un badge — es una marca
+   sobre el número, que es lo que hay que mirar con desconfianza. */
+.importe.dudosa{
+  color:var(--lapiz-rojo);
+  text-decoration:underline;text-decoration-color:rgba(192,54,44,.45);
+  text-decoration-thickness:1.5px;text-underline-offset:3px;
+}
+.marca-dudosa{
+  flex:none;width:16px;text-align:center;font-size:11px;color:var(--lapiz-rojo);
+  font-weight:700;line-height:1;
+}
+
+/* ── Vacío / cargando ────────────────────────────────────────────────────── */
+.vacio{padding:56px 24px;text-align:center;color:var(--tinta-3);font-size:14px}
+.vacio b{display:block;color:var(--tinta-2);font-weight:500;margin-bottom:4px}
+.cargando{padding:56px;text-align:center;color:var(--tinta-3);font-size:13.5px}
+.esqueleto{height:44px;border-bottom:1px solid var(--filo-suave);background:
+  linear-gradient(90deg,transparent,rgba(0,0,0,.025),transparent) 0 0/200% 100%;
+  animation:barrido 1.3s infinite}
+@keyframes barrido{to{background-position:-200% 0}}
+
+@media (max-width:860px){
+  .nro,.cat{display:none}
+  .quien-col{width:96px}
+  .importe{width:112px}
+}
+@media (max-width:620px){
+  .quien-col{display:none}
+  .barra,.migas,.filtros,.resumen,main{padding-left:16px;padding-right:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ Ingreso ═══════════════════════════════════════════════════════════ -->
+<div id="ingreso">
+  <div class="tarjeta-ingreso">
+    <h1>Comprobantes</h1>
+    <p>Domus Global · acceso para administración</p>
+    <input id="mail" class="campo" type="email" placeholder="tu.mail@dominio.com"
+           autocomplete="email" autocapitalize="off" spellcheck="false">
+    <button id="pedir" class="boton">Enviarme el acceso</button>
+    <div id="pasoCodigo" style="display:none">
+      <input id="codigo" class="campo mono" inputmode="numeric" placeholder="Código de 6 dígitos" maxlength="8">
+      <button id="verificar" class="boton">Entrar</button>
+    </div>
+    <div id="avisoIngreso" class="aviso"></div>
+  </div>
+</div>
+
+<!-- ══ Aplicación ════════════════════════════════════════════════════════ -->
+<div id="app">
+  <header>
+    <div class="barra">
+      <div class="marca">Comprobantes <span>· Domus Global</span></div>
+      <div class="quien"><span id="mailActual"></span><button class="salir" id="salir">Salir</button></div>
+    </div>
+  </header>
+
+  <nav class="migas" id="migas"></nav>
+
+  <div class="filtros">
+    <input id="q" class="campo" placeholder="Buscar proveedor o número de factura…">
+    <span class="rango"><label for="desde">Desde</label><input id="desde" class="campo" type="date"></span>
+    <span class="rango"><label for="hasta">Hasta</label><input id="hasta" class="campo" type="date"></span>
+    <select id="persona" class="campo"><option value="">Todas las personas</option></select>
+    <select id="categoria" class="campo"><option value="">Todas las categorías</option></select>
+    <button id="soloDudosas" class="chip">Solo sin confirmar</button>
+    <button id="limpiar" class="limpiar">Limpiar</button>
+  </div>
+
+  <div class="resumen" id="resumen"></div>
+  <main><div class="lista" id="lista"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div></main>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Configuración. La key publishable es pública por diseño: no da acceso a nada
+// por sí sola. Lo que decide qué se ve son las políticas RLS de la base, que
+// exigen estar logueado Y estar en la tabla `admins`.
+// ═══════════════════════════════════════════════════════════════════════════
+const URL_SB = 'https://kpsjrvfljhdwiplxllws.supabase.co';
+const KEY_PUB = 'sb_publishable_Al89lXCUcC1IFoNztajHZQ_PUUeo5-O';
+
+const GUARDADO = 'domus_sesion';
+let sesion = null;
+
+// ── Sesión ─────────────────────────────────────────────────────────────────
+const leerSesion = () => { try { return JSON.parse(localStorage.getItem(GUARDADO)); } catch { return null; } };
+const guardarSesion = (s) => { sesion = s; localStorage.setItem(GUARDADO, JSON.stringify(s)); };
+const olvidarSesion = () => { sesion = null; localStorage.removeItem(GUARDADO); };
+
+async function auth(ruta, cuerpo) {
+  const r = await fetch(`${URL_SB}/auth/v1/${ruta}`, {
+    method: 'POST',
+    headers: { apikey: KEY_PUB, 'Content-Type': 'application/json' },
+    body: JSON.stringify(cuerpo),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.msg || d.error_description || d.error || `error ${r.status}`);
+  return d;
+}
+
+/** El access token vive una hora; el refresh lo renueva sin molestar a nadie. */
+async function renovar() {
+  const d = await auth('token?grant_type=refresh_token', { refresh_token: sesion.refresh_token });
+  guardarSesion(d);
+}
+
+async function api(ruta, opciones = {}, reintento = true) {
+  const r = await fetch(`${URL_SB}/${ruta}`, {
+    ...opciones,
+    headers: { apikey: KEY_PUB, Authorization: `Bearer ${sesion.access_token}`, ...(opciones.headers || {}) },
+  });
+  if (r.status === 401 && reintento) { await renovar(); return api(ruta, opciones, false); }
+  if (!r.ok) throw new Error(`${ruta.split('?')[0]} → ${r.status}`);
+  return r.json();
+}
+
+// ── Ingreso ────────────────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const decir = (txt, mal) => { const a = $('avisoIngreso'); a.textContent = txt; a.className = 'aviso' + (mal ? ' mal' : ''); };
+
+$('pedir').onclick = async () => {
+  const email = $('mail').value.trim().toLowerCase();
+  if (!email.includes('@')) return decir('Falta el mail.', true);
+  $('pedir').disabled = true;
+  decir('Enviando…');
+  try {
+    // create_user:false — nadie se crea una cuenta desde acá. Doble llave junto
+    // con la política RLS: hay que estar en `admins` para ver algo.
+    await auth('otp', { email, create_user: false });
+    $('pasoCodigo').style.display = 'block';
+    $('pedir').style.display = 'none';
+    decir('Te mandamos un mail. Podés hacer clic en el link, o pegar acá el código si el mail te trae uno.');
+    $('codigo').focus();
+  } catch (e) {
+    decir(/not allowed|signups/i.test(e.message)
+      ? 'Ese mail no está habilitado. Pedile a Juani que te agregue.'
+      : 'No pude enviarlo: ' + e.message, true);
+    $('pedir').disabled = false;
+  }
+};
+
+$('verificar').onclick = async () => {
+  const token = $('codigo').value.replace(/\s/g, '');
+  if (!token) return decir('Falta el código.', true);
+  $('verificar').disabled = true;
+  try {
+    guardarSesion(await auth('verify', { email: $('mail').value.trim().toLowerCase(), token, type: 'email' }));
+    arrancar();
+  } catch (e) {
+    decir('Código incorrecto o vencido.', true);
+    $('verificar').disabled = false;
+  }
+};
+$('codigo').onkeydown = (e) => { if (e.key === 'Enter') $('verificar').click(); };
+$('mail').onkeydown = (e) => { if (e.key === 'Enter') $('pedir').click(); };
+$('salir').onclick = () => { olvidarSesion(); location.hash = ''; location.reload(); };
+
+// ── Datos ──────────────────────────────────────────────────────────────────
+let facturas = [], empleados = new Map(), rutaActual = [];
+const filtros = { q: '', desde: '', hasta: '', persona: '', categoria: '', dudosas: false };
+
+const fmt = (m, mon) => (mon || 'UYU') + ' ' + Number(m || 0).toLocaleString('es-UY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const soloFecha = (f) => (f || '').slice(0, 10);
+
+/** Por WhatsApp `reporter` es el teléfono; por mail, el From entero. */
+function quien(rep) {
+  if (!rep) return '—';
+  if (empleados.has(rep)) return empleados.get(rep);
+  const m = rep.match(/^\s*"?([^"<]+?)"?\s*</);
+  return m ? m[1].trim() : rep.replace(/[<>]/g, '');
+}
+
+async function cargar() {
+  const [inv, emp] = await Promise.all([
+    api('rest/v1/invoices?select=id,empresa_emisora,rut_emisor,monto,moneda,fecha,nro_factura,created_at,reporter,confirmacion,archivo_url,company_id,companies(nombre),categories(nombre)&order=fecha.desc'),
+    api('rest/v1/employees?select=phone,nombre'),
+  ]);
+  empleados = new Map(emp.map((e) => [e.phone, e.nombre]));
+  facturas = inv.map((f) => ({
+    ...f,
+    empresa: f.companies?.nombre || 'Sin empresa',
+    categoria: f.categories?.nombre || 'Sin categoría',
+    dia: soloFecha(f.fecha || f.created_at),
+    mes: soloFecha(f.fecha || f.created_at).slice(0, 7),
+    persona: quien(f.reporter),
+  }));
+
+  const opciones = (sel, valores) => {
+    for (const v of [...new Set(valores)].sort()) {
+      const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o);
+    }
+  };
+  opciones($('persona'), facturas.map((f) => f.persona));
+  opciones($('categoria'), facturas.map((f) => f.categoria));
+}
+
+// ── Filtrado ───────────────────────────────────────────────────────────────
+function filtradas() {
+  const q = filtros.q.toLowerCase();
+  return facturas.filter((f) => {
+    if (filtros.dudosas && f.confirmacion !== 'inferida') return false;
+    if (filtros.persona && f.persona !== filtros.persona) return false;
+    if (filtros.categoria && f.categoria !== filtros.categoria) return false;
+    if (filtros.desde && f.dia < filtros.desde) return false;
+    if (filtros.hasta && f.dia > filtros.hasta) return false;
+    if (q && !((f.empresa_emisora || '') + ' ' + (f.nro_factura || '') + ' ' + (f.rut_emisor || '')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+const hayFiltro = () => filtros.q || filtros.desde || filtros.hasta || filtros.persona || filtros.categoria || filtros.dudosas;
+
+// ── Dibujo ─────────────────────────────────────────────────────────────────
+const ICONO_CARPETA = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 4.2c0-.9.7-1.6 1.6-1.6h2.6c.5 0 1 .2 1.3.6l.7.8h5.2c.9 0 1.6.7 1.6 1.6v6.2c0 .9-.7 1.6-1.6 1.6H3.1c-.9 0-1.6-.7-1.6-1.6V4.2Z"/></svg>';
+const ICONO_PDF = '<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1.5h5L13 5.5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" opacity=".35"/><path d="M9 1.5 13 5.5H9.6A.6.6 0 0 1 9 4.9V1.5Z"/></svg>';
+const ICONO_IMG = '<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3" width="12" height="10" rx="1.4" opacity=".35"/><circle cx="5.6" cy="6.4" r="1.1"/><path d="M2.6 12.4 6 8.9l2.2 2.2 2-1.9 3.2 3.2H2.6Z"/></svg>';
+const ICONO_CHEVRON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m6.5 4 4 4-4 4"/></svg>';
+
+/** Colores de pestaña, del mundo del archivo: manila, kraft, verde de libro
+    contable, violeta de sello, azul de tinta, cuero.
+    Se asignan por orden alfabético y no por hash: con pocas empresas un hash
+    repite colores y dos carpetas vecinas terminan iguales, que es justo lo que
+    la pestaña tiene que evitar. */
+const PESTANAS = ['#c9a227', '#3b6ea5', '#5f7a52', '#6b5b8f', '#a8683c', '#8a7355'];
+let colorPestana = new Map();
+const pestana = (s) => colorPestana.get(s) || 'var(--tinta-4)';
+function asignarPestanas(claves) {
+  colorPestana = new Map([...new Set(claves)].sort().map((k, i) => [k, PESTANAS[i % PESTANAS.length]]));
+}
+
+function totales(items) {
+  const por = {};
+  for (const f of items) por[f.moneda || 'UYU'] = (por[f.moneda || 'UYU'] || 0) + Number(f.monto || 0);
+  // Cuatro monedas en los datos: sumarlas en un solo número no significaría nada.
+  return Object.entries(por).sort((a, b) => b[1] - a[1]).map(([m, v]) => fmt(v, m));
+}
+
+function dibujar() {
+  const vista = filtradas();
+  const [empresa, mes] = rutaActual;
+  const alcance = vista.filter((f) => (!empresa || f.empresa === empresa) && (!mes || f.mes === mes));
+
+  // Migas
+  const migas = [`<button data-ir="0">Comprobantes</button>`];
+  if (empresa) migas.push(`<span class="sep">›</span>`, mes ? `<button data-ir="1">${esc(empresa)}</button>` : `<span class="actual">${esc(empresa)}</span>`);
+  if (mes) migas.push(`<span class="sep">›</span><span class="actual">${mesLargo(mes)}</span>`);
+  $('migas').innerHTML = migas.join('');
+
+  // Resumen del alcance actual
+  const sinConf = alcance.filter((f) => f.confirmacion === 'inferida').length;
+  $('resumen').innerHTML =
+    `<span><b>${alcance.length}</b> comprobante${alcance.length === 1 ? '' : 's'}${hayFiltro() ? ' (filtrados)' : ''}</span>` +
+    totales(alcance).map((t) => `<span class="plata mono">${t}</span>`).join('') +
+    (sinConf ? `<span style="color:var(--lapiz-rojo)"><b style="color:var(--lapiz-rojo)">${sinConf}</b> sin confirmar</span>` : '');
+
+  const lista = $('lista');
+  if (!alcance.length) {
+    lista.innerHTML = `<div class="vacio"><b>No hay comprobantes acá</b>${hayFiltro() ? 'Probá aflojando los filtros.' : ''}</div>`;
+    return;
+  }
+
+  // ── Nivel empresas ──
+  if (!empresa) {
+    const grupos = agrupar(alcance, (f) => f.empresa);
+    asignarPestanas(grupos.map(([n]) => n));
+    lista.innerHTML = grupos.map(([nombre, items]) => `
+      <button class="fila carpeta" data-empresa="${esc(nombre)}" style="--pestana:${pestana(nombre)}">
+        <span class="icono">${ICONO_CARPETA}</span>
+        <span class="crece"><div class="nombre">${esc(nombre)}</div>
+          <div class="sub mono">${totales(items).join('  ·  ')}</div></span>
+        <span class="cuenta">${items.length}</span>
+        <span class="chevron">${ICONO_CHEVRON}</span>
+      </button>`).join('');
+    return;
+  }
+
+  // ── Nivel meses ──
+  if (!mes) {
+    const grupos = agrupar(alcance, (f) => f.mes).sort((a, b) => b[0].localeCompare(a[0]));
+    asignarPestanas(grupos.map(([m]) => m));
+    lista.innerHTML = grupos.map(([m, items]) => {
+      const dud = items.filter((f) => f.confirmacion === 'inferida').length;
+      return `<button class="fila carpeta" data-mes="${m}" style="--pestana:${pestana(m)}">
+        <span class="icono">${ICONO_CARPETA}</span>
+        <span class="crece"><div class="nombre">${mesLargo(m)}</div>
+          <div class="sub mono">${totales(items).join('  ·  ')}</div></span>
+        ${dud ? `<span class="cuenta" style="color:var(--lapiz-rojo)">${dud} sin confirmar</span>` : ''}
+        <span class="cuenta">${items.length}</span>
+        <span class="chevron">${ICONO_CHEVRON}</span>
+      </button>`;
+    }).join('');
+    return;
+  }
+
+  // ── Nivel comprobantes ──
+  lista.innerHTML = alcance
+    .sort((a, b) => a.dia.localeCompare(b.dia))
+    .map((f) => {
+      const dudosa = f.confirmacion === 'inferida';
+      const esPdf = (f.archivo_url || '').toLowerCase().endsWith('.pdf');
+      return `<button class="fila doc" data-abrir="${esc(f.archivo_url || '')}" title="${esc(f.empresa_emisora || '')}">
+        <span class="icono">${esPdf ? ICONO_PDF : ICONO_IMG}</span>
+        <span class="fecha mono">${f.dia.slice(8, 10)}/${f.dia.slice(5, 7)}</span>
+        <span class="emisor">${esc(f.empresa_emisora || 'Sin proveedor')}</span>
+        <span class="nro mono">${esc(f.nro_factura || '')}</span>
+        <span class="quien-col">${esc(f.persona)}</span>
+        <span class="cat">${esc(f.categoria)}</span>
+        <span class="importe mono${dudosa ? ' dudosa' : ''}"><span class="mon">${f.moneda || 'UYU'}</span>${Number(f.monto || 0).toLocaleString('es-UY', { minimumFractionDigits: 2 })}</span>
+        <span class="marca-dudosa">${dudosa ? '!' : ''}</span>
+      </button>`;
+    }).join('');
+}
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const agrupar = (arr, clave) => {
+  const m = new Map();
+  for (const x of arr) { const k = clave(x); (m.get(k) || m.set(k, []).get(k)).push(x); }
+  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+};
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'];
+const mesLargo = (m) => { const [a, x] = m.split('-'); return `${MESES[+x - 1]} ${a}`; };
+
+// ── Interacción ────────────────────────────────────────────────────────────
+$('lista').onclick = async (e) => {
+  const fila = e.target.closest('.fila'); if (!fila) return;
+  if (fila.dataset.empresa) { rutaActual = [fila.dataset.empresa]; return dibujar(); }
+  if (fila.dataset.mes) { rutaActual = [rutaActual[0], fila.dataset.mes]; return dibujar(); }
+  const ruta = fila.dataset.abrir;
+  if (!ruta) return;
+  fila.style.opacity = '.5';
+  try {
+    // URL firmada: el archivo no es público, se pide un permiso temporal.
+    const d = await api(`storage/v1/object/sign/facturas/${ruta}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresIn: 300 }),
+    });
+    window.open(URL_SB + '/storage/v1' + (d.signedURL || d.signedUrl), '_blank');
+  } catch { alert('No pude abrir el comprobante.'); }
+  fila.style.opacity = '';
+};
+$('migas').onclick = (e) => {
+  const b = e.target.closest('[data-ir]'); if (!b) return;
+  rutaActual = rutaActual.slice(0, +b.dataset.ir); dibujar();
+};
+
+const alFiltrar = () => {
+  filtros.q = $('q').value.trim();
+  filtros.desde = $('desde').value; filtros.hasta = $('hasta').value;
+  filtros.persona = $('persona').value; filtros.categoria = $('categoria').value;
+  dibujar();
+};
+for (const id of ['q', 'desde', 'hasta', 'persona', 'categoria']) $(id).oninput = alFiltrar;
+$('soloDudosas').onclick = () => {
+  filtros.dudosas = !filtros.dudosas;
+  $('soloDudosas').classList.toggle('on', filtros.dudosas);
+  dibujar();
+};
+$('limpiar').onclick = () => {
+  Object.assign(filtros, { q: '', desde: '', hasta: '', persona: '', categoria: '', dudosas: false });
+  for (const id of ['q', 'desde', 'hasta', 'persona', 'categoria']) $(id).value = '';
+  $('soloDudosas').classList.remove('on');
+  dibujar();
+};
+
+// ── Arranque ───────────────────────────────────────────────────────────────
+async function arrancar() {
+  $('ingreso').style.display = 'none';
+  $('app').style.display = 'block';
+  try {
+    const yo = await api('auth/v1/user');
+    $('mailActual').textContent = yo.email || '';
+    await cargar();
+    if (!facturas.length) {
+      $('lista').innerHTML = `<div class="vacio"><b>No hay nada para mostrar</b>Tu usuario está logueado pero no figura como administrador.</div>`;
+      $('resumen').innerHTML = '';
+      return;
+    }
+    dibujar();
+  } catch (e) {
+    olvidarSesion();
+    $('app').style.display = 'none';
+    $('ingreso').style.display = 'grid';
+    decir('Se venció la sesión, entrá de nuevo.', true);
+  }
+}
+
+(function inicio() {
+  // Si vino del link del mail, los tokens llegan en el fragmento de la URL.
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('access_token')) {
+    guardarSesion({ access_token: h.get('access_token'), refresh_token: h.get('refresh_token') });
+    history.replaceState(null, '', location.pathname + location.search);
+    return arrancar();
+  }
+  if (h.get('error_description')) decir(decodeURIComponent(h.get('error_description')).replace(/\+/g, ' '), true);
+  sesion = leerSesion();
+  if (sesion?.refresh_token) return arrancar();
+  $('mail').focus();
+})();
+</script>
+</body>
+</html>
