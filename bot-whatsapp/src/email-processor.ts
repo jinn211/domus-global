@@ -477,6 +477,34 @@ async function findCompany(
     }
   }
 
+  // 2b. Por el EMPLEADO que la reenvia.
+  //     Cuando alguien manda desde su gmail personal, el paso anterior no
+  //     sirve: los dominios genericos se descartan a proposito, porque
+  //     "gmail.com" no identifica a ninguna empresa. Pero el sistema ya sabe de
+  //     quien es ese mail — SENDERS lo mapea a un telefono, y ese telefono a un
+  //     empleado con su empresa.
+  //     Sin esto, una factura reenviada desde un mail personal caia en
+  //     "No Identificado" teniendo el dato a mano. Paso el 15/07/2026 con una
+  //     factura de Anthropic que reenvio Julio desde su gmail.
+  //     Los admin quedan afuera igual que en el paso 2: cargan de cualquier
+  //     empresa, y la real se resuelve desde el comprobante.
+  if (!esAdmin && senderEmail) {
+    const tel = SENDERS[senderEmail.toLowerCase()];
+    if (tel) {
+      const { data } = await supabase
+        .from('employees')
+        .select('company_id, companies(nombre)')
+        .eq('phone', tel)
+        .eq('activo', true)
+        .maybeSingle();
+      const nombreEmpresa = (data as { companies?: { nombre?: string } } | null)?.companies?.nombre;
+      if (data?.company_id && nombreEmpresa) {
+        await learnRut(data.company_id, rut);
+        return { id: data.company_id, nombre: nombreEmpresa, via: 'empleado:' + senderEmail };
+      }
+    }
+  }
+
   // 3. Por dominio de email del receptor (dentro de la factura)
   const domain = extractDomain(inv.email_receptor);
   if (domain) {
